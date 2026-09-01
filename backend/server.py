@@ -155,13 +155,16 @@ async def clear_incidents():
     return {"status": "SUCCESS", "message": "Incident log cleared"}
 
 
+@app.post("/api/hazard/inject")
 @app.post("/api/simulation/inject_hazard")
 async def inject_hazard(req: HazardInjectionRequest):
-    sim_engine.set_hazard(req.hazard_type, req.distance_m or 7.0)
+    dur = getattr(req, "duration_s", 8.0) or 8.0
+    sim_engine.set_hazard(req.hazard_type, req.distance_m or 7.0, dur)
     return {
         "status": "SUCCESS",
         "active_hazard": sim_engine.active_hazard,
         "distance_m": req.distance_m,
+        "duration_s": dur,
         "message": f"Hazard '{req.hazard_type}' injected successfully.",
     }
 
