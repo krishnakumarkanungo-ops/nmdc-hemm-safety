@@ -29,4 +29,4 @@ if __name__ == "__main__":
         port = 8000
 
     print(f"[*] Starting HEMM Safety System on 0.0.0.0:{port}...")
-    uvicorn.run("backend.server:app", host="0.0.0.0", port=port, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
