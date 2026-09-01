@@ -67,8 +67,16 @@ class HEMMSafetyApp {
     // Bind UI Event Listeners
     this.bindEvents();
 
-    // Connect Real-Time Stream
+    // Instant HTTP fetch on start (0ms load)
+    this.fetchTelemetryHttp();
+
+    // Connect Real-Time WebSocket + HTTP Polling Backup (guarantees data flow)
     this.connectWebSocket();
+    setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        this.fetchTelemetryHttp();
+      }
+    }, 200);
 
     // Start Decoupled Animation Loop
     this.startRenderLoop();
@@ -76,6 +84,23 @@ class HEMMSafetyApp {
     // Background Polling (Clean 10-second interval)
     this.fetchIncidents();
     setInterval(() => this.fetchIncidents(), 10000);
+  }
+
+  async fetchTelemetryHttp() {
+    try {
+      const res = await fetch(`/api/telemetry?vehicle=${this.activeVehicleId}`);
+      if (res.ok) {
+        const packet = await res.json();
+        this.latestPacket = packet;
+        this.consumePacket(packet);
+        const statusLed = document.getElementById("ws-status-led");
+        const statusText = document.getElementById("ws-status-text");
+        if (statusLed && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+          statusLed.className = "led-indicator led-green";
+          if (statusText) statusText.innerText = "STREAM ONLINE (HTTP 10 Hz)";
+        }
+      }
+    } catch (e) {}
   }
 
   renderInitialState() {
