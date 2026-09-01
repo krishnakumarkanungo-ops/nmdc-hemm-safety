@@ -175,6 +175,21 @@ async def toggle_mode(mode: str = None):
     return {"status": "SUCCESS", "mode": new_mode}
 
 
+@app.post("/api/simulation/pause")
+async def pause_simulation():
+    is_paused = sim_engine.toggle_pause()
+    return {"status": "SUCCESS", "is_paused": is_paused}
+
+
+@app.post("/api/simulation/control")
+async def control_simulation(payload: dict):
+    speed_delta = float(payload.get("speed_delta", 0.0))
+    brake = bool(payload.get("brake", False))
+    steer_delta = float(payload.get("steer_delta", 0.0))
+    sim_engine.set_manual_control(speed_delta=speed_delta, steer_delta=steer_delta, brake=brake)
+    return {"status": "SUCCESS", "speed": sim_engine.fleet_vehicles["HEMM-DUMP-07"]["speed"]}
+
+
 # In-memory and persistent notes storage
 system_notes = [
     {
