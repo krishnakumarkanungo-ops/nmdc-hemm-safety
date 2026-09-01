@@ -277,8 +277,12 @@ class HEMMSafetyApp {
     // 7. Update Digital Instrument Cluster & Telemetry Gauges
     this.updateInstrumentCluster(activePacket);
 
-    // 8. Update Dispatch Overview Cards & Table
-    this.updateDispatchCards(packet);
+    // 8. Throttle Dispatch Overview Cards & Table to 2 Hz (prevents browser DOM lag)
+    const now = Date.now();
+    if (!this.lastDispatchDomUpdate || now - this.lastDispatchDomUpdate > 500) {
+      this.lastDispatchDomUpdate = now;
+      this.updateDispatchCards(packet);
+    }
   }
 
   updateCollisionBanner(packet) {
