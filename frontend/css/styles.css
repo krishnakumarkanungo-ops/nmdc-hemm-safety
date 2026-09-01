@@ -1,0 +1,225 @@
+/* 
+ * HEMM Operator & Fleet Safety System - NMDC Bailadila Sector
+ * High-Contrast Dark Industrial Rugged Tablet Theme
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700;800&display=swap');
+
+:root {
+  --bg-primary: #080c14;
+  --bg-panel: #0f172a;
+  --bg-card: #131d31;
+  --border-tactical: #1e293b;
+  --border-highlight: #334155;
+  
+  --safety-green: #10b981;
+  --safety-green-glow: rgba(16, 185, 129, 0.4);
+  --warning-amber: #f59e0b;
+  --warning-amber-glow: rgba(245, 158, 11, 0.45);
+  --critical-red: #ef4444;
+  --critical-red-glow: rgba(239, 68, 68, 0.6);
+  --radar-cyan: #06b6d4;
+  --radar-cyan-glow: rgba(6, 182, 212, 0.4);
+  --thermal-orange: #f97316;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+body {
+  font-family: 'Chakra Petch', sans-serif;
+  background-color: var(--bg-primary);
+  color: #e2e8f0;
+  overflow-x: hidden;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Industrial Grid Background */
+.industrial-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Tactical Cockpit Panel Styling */
+.tactical-panel {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-tactical);
+  border-radius: 8px;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.tactical-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #64748b;
+  border-left: 2px solid #64748b;
+}
+
+.tactical-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid #64748b;
+  border-right: 2px solid #64748b;
+}
+
+/* Alert States */
+.state-clear {
+  border-color: var(--safety-green) !important;
+  box-shadow: 0 0 25px var(--safety-green-glow) !important;
+}
+
+.state-advisory {
+  border-color: var(--warning-amber) !important;
+  box-shadow: 0 0 30px var(--warning-amber-glow) !important;
+}
+
+.state-critical {
+  border-color: var(--critical-red) !important;
+  box-shadow: 0 0 40px var(--critical-red-glow) !important;
+  animation: strobe-alert 0.7s infinite alternate;
+}
+
+@keyframes strobe-alert {
+  0% {
+    background-color: rgba(239, 68, 68, 0.15);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  }
+  100% {
+    background-color: rgba(239, 68, 68, 0.35);
+    box-shadow: 0 0 60px rgba(239, 68, 68, 0.9);
+  }
+}
+
+/* Flashing Text Alert */
+.animate-flash-fast {
+  animation: flash-text 0.5s infinite alternate;
+}
+
+@keyframes flash-text {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.25; transform: scale(1.02); }
+}
+
+/* Tactical Glow Accents */
+.glow-green {
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+}
+
+.glow-amber {
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+}
+
+.glow-red {
+  text-shadow: 0 0 14px rgba(239, 68, 68, 0.95);
+}
+
+.glow-cyan {
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+}
+
+/* Radar Scope Glow */
+.radar-glow {
+  filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4));
+}
+
+/* Rugged Touch Controls */
+.tactical-btn {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  color: #f1f5f9;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+}
+
+.tactical-btn:hover {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  border-color: #64748b;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
+}
+
+.tactical-btn:active {
+  transform: translateY(1px);
+}
+
+/* Custom Scrollbar for Rugged Displays */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090d14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Leaflet Map Styling Override for Dark Pit Theme */
+.leaflet-container {
+  background-color: #080c14 !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: #0f172a !important;
+  color: #38bdf8 !important;
+  border-color: #1e293b !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important;
+}
+
+.leaflet-popup-tip {
+  background: #0f172a !important;
+}
+
+/* Status Indicator LED */
+.led-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.led-green {
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.led-amber {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+.led-red {
+  background-color: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+}
