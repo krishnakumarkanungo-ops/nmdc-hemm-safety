@@ -260,11 +260,23 @@ class HEMMSafetyApp {
     } else if (viewName === "DISPATCH") {
       hudContainer?.classList.add("hidden");
       dispatchContainer?.classList.remove("hidden");
-      setTimeout(() => this.dispatchMap?.map?.invalidateSize(), 50);
+      setTimeout(() => {
+        if (!this.dispatchMap || !this.dispatchMap.map) {
+          this.dispatchMap = new DispatchMapRenderer("dispatch-map");
+        } else {
+          this.dispatchMap.map.invalidateSize();
+        }
+      }, 100);
     } else if (viewName === "DUAL") {
       hudContainer?.classList.remove("hidden");
       dispatchContainer?.classList.remove("hidden");
-      setTimeout(() => this.dispatchMap?.map?.invalidateSize(), 50);
+      setTimeout(() => {
+        if (!this.dispatchMap || !this.dispatchMap.map) {
+          this.dispatchMap = new DispatchMapRenderer("dispatch-map");
+        } else {
+          this.dispatchMap.map.invalidateSize();
+        }
+      }, 100);
     }
 
     // Trigger canvas resize
@@ -510,14 +522,16 @@ class HEMMSafetyApp {
 
   async injectHazard(hazardType, distanceMeters) {
     try {
-      const res = await fetch("/api/hazard/inject", {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ action: "inject_hazard", hazard_type: hazardType, distance_m: distanceMeters }));
+      }
+      await fetch("/api/hazard/inject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hazard_type: hazardType, distance_m: distanceMeters, duration_s: 8.0 }),
+        body: JSON.stringify({ hazard_type: hazardType, distance_m: distanceMeters, duration_s: (hazardType === "NONE" ? 0 : 8.0) }),
       });
-      if (res.ok) {
-        this.fetchIncidents();
-      }
+      setTimeout(() => this.fetchTelemetryHttp(), 30);
+      this.fetchIncidents();
     } catch (e) {}
   }
 
