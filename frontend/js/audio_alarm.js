@@ -1,5 +1,5 @@
 /**
- * Web Audio API In-Cab Alarm Synthesizer
+ * Web Audio API In-Cab Alarm Synthesizer (Rock-Solid & Non-Blocking)
  * Generates authentic industrial buzzer & sonar collision warning tones in real-time.
  */
 
@@ -7,37 +7,33 @@ class CabAudioAlarm {
   constructor() {
     this.ctx = null;
     this.isMuted = false;
-    this.volume = 0.75;
+    this.volume = 0.65;
     this.currentState = "CLEAR";
-    this.activeOscillators = [];
     this.pulseInterval = null;
     this.isUnlocked = false;
   }
 
   initContext() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
+    try {
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+          this.isUnlocked = true;
+        }
+      } else if (this.ctx.state === "suspended") {
+        this.ctx.resume();
         this.isUnlocked = true;
       }
-    } else if (this.ctx.state === "suspended") {
-      this.ctx.resume();
-      this.isUnlocked = true;
-    }
+    } catch (e) {}
   }
 
   setMute(mute) {
     this.isMuted = mute;
-    if (this.isMuted) {
-      this.stopAllTones();
-    } else {
+    this.stopAllTones();
+    if (!this.isMuted && this.currentState !== "CLEAR") {
       this.updateState(this.currentState, true);
     }
-  }
-
-  setVolume(vol) {
-    this.volume = Math.max(0.0, Math.min(1.0, vol));
   }
 
   stopAllTones() {
@@ -45,16 +41,9 @@ class CabAudioAlarm {
       clearInterval(this.pulseInterval);
       this.pulseInterval = null;
     }
-    this.activeOscillators.forEach(osc => {
-      try {
-        osc.stop();
-        osc.disconnect();
-      } catch (e) {}
-    });
-    this.activeOscillators = [];
   }
 
-  playBeep(freq, durationMs, type = "sawtooth") {
+  playBeep(freq, durationMs, type = "square") {
     if (this.isMuted || !this.ctx || this.ctx.state !== "running") return;
 
     try {
@@ -64,55 +53,53 @@ class CabAudioAlarm {
       osc.type = type;
       osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
 
-      gain.gain.setValueAtTime(this.volume * 0.4, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (durationMs / 1000));
+      const durSec = durationMs / 1000.0;
+      gain.gain.setValueAtTime(this.volume * 0.35, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + durSec);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
-      osc.start();
-      osc.stop(this.ctx.currentTime + (durationMs / 1000));
-    } catch (e) {
-      console.warn("Audio playback error:", e);
-    }
+      osc.start(this.ctx.currentTime);
+      osc.stop(this.ctx.currentTime + durSec);
+    } catch (e) {}
   }
 
   startCriticalAlarm() {
     this.stopAllTones();
-    if (this.isMuted || !this.ctx) return;
+    if (this.isMuted || !this.ctx || this.ctx.state !== "running") return;
 
-    // Rapid pulsing dual-tone warble (1100Hz / 1650Hz at 7 Hz pulse rate)
     let alt = false;
+    this.playBeep(1250, 100, "square");
     this.pulseInterval = setInterval(() => {
-      const freq = alt ? 1400 : 950;
-      this.playBeep(freq, 110, "square");
+      const freq = alt ? 1350 : 950;
+      this.playBeep(freq, 100, "square");
       alt = !alt;
-    }, 130);
+    }, 180);
   }
 
   startAdvisoryAlarm() {
     this.stopAllTones();
-    if (this.isMuted || !this.ctx) return;
+    if (this.isMuted || !this.ctx || this.ctx.state !== "running") return;
 
-    // Sonar caution ping (650 Hz every 750ms)
-    this.playBeep(650, 160, "sine");
+    this.playBeep(650, 140, "sine");
     this.pulseInterval = setInterval(() => {
-      this.playBeep(650, 160, "sine");
-    }, 750);
+      this.playBeep(650, 140, "sine");
+    }, 900);
   }
 
   updateState(state, force = false) {
     if (state === this.currentState && !force) return;
     this.currentState = state;
 
-    if (this.isMuted || !this.isUnlocked) return;
+    this.stopAllTones();
+
+    if (this.isMuted || !this.isUnlocked || !this.ctx) return;
 
     if (state === "CRITICAL") {
       this.startCriticalAlarm();
     } else if (state === "ADVISORY") {
       this.startAdvisoryAlarm();
-    } else {
-      this.stopAllTones();
     }
   }
 }
