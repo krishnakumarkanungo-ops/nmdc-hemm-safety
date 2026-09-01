@@ -136,21 +136,37 @@ class HEMMSafetyApp {
 
     // Notes Modal Handlers
     document.getElementById("btn-open-notes")?.addEventListener("click", () => {
-      document.getElementById("notes-modal")?.classList.remove("hidden");
+      const modal = document.getElementById("notes-modal");
+      if (modal) {
+        modal.style.display = "flex";
+        modal.classList.remove("hidden");
+      }
       this.fetchNotes();
     });
     document.getElementById("btn-close-notes-modal")?.addEventListener("click", () => {
-      document.getElementById("notes-modal")?.classList.add("hidden");
+      const modal = document.getElementById("notes-modal");
+      if (modal) {
+        modal.style.display = "none";
+        modal.classList.add("hidden");
+      }
     });
     document.getElementById("btn-submit-note")?.addEventListener("click", () => this.submitNote());
     document.getElementById("btn-export-notes-csv")?.addEventListener("click", () => this.exportNotesCSV());
 
     // Hardware Docs Modal
     document.getElementById("btn-hw-guide")?.addEventListener("click", () => {
-      document.getElementById("hw-modal")?.classList.remove("hidden");
+      const modal = document.getElementById("hw-modal");
+      if (modal) {
+        modal.style.display = "flex";
+        modal.classList.remove("hidden");
+      }
     });
     document.getElementById("btn-close-hw-modal")?.addEventListener("click", () => {
-      document.getElementById("hw-modal")?.classList.add("hidden");
+      const modal = document.getElementById("hw-modal");
+      if (modal) {
+        modal.style.display = "none";
+        modal.classList.add("hidden");
+      }
     });
   }
 
@@ -577,7 +593,15 @@ class HEMMSafetyApp {
   }
 }
 
-// Instantiate on DOM load
-window.addEventListener("DOMContentLoaded", () => {
-  window.app = new HEMMSafetyApp();
-});
+// Robust instantiation for all page load states
+function initHEMMSafetyApp() {
+  if (!window.app) {
+    window.app = new HEMMSafetyApp();
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initHEMMSafetyApp);
+} else {
+  initHEMMSafetyApp();
+}
