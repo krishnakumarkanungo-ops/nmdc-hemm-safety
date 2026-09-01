@@ -1,89 +1,77 @@
 """
-High-fidelity Mine Telemetry & Sensor Simulation Engine
-Specialized for NMDC Bailadila Iron Ore Complex (Deposit 14 / Deposit 5 Sector)
-Features:
-- Multi-Vehicle V2V (Vehicle-to-Vehicle) collision avoidance
-- 10-20 Hz real-time physics for multiple HEMM units (Dumpers, Shovels, Dozers, Light Vehicles)
-- 24/77 GHz mmWave radar with mutual inter-vehicle proximity detection
-- 32x24 thermal matrix (MLX90640) with vehicle engine and human heat signatures
-- Virtual haul lane berm distances and multi-device hardware ingress
+Simulation & Physical Kinematics Engine (Clean, Deterministic & Rock-Solid)
+HEMM Operator & Fleet Safety System - NMDC Bailadila Iron Ore Complex
+Zero-jitter, deterministic hazard scenarios, clean V2V collision checks, and direct manual control.
 """
 
 import time
 import math
-import random
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, Any, List, Optional
+from enum import Enum
 
 from models import (
     TelemetryPacket,
-    GPSData,
     RadarTelemetry,
     RadarTarget,
     BermProximity,
+    GPSData,
     FleetVehicleSummary,
     IncidentRecord,
     CollisionStateEnum,
-    HazardTypeEnum,
 )
 
-# Coordinates for NMDC Bailadila Deposit 14 / 5 Open-Cast Pit
-BAILADILA_WAYPOINTS = [
-    {"lat": 18.7185, "lng": 81.2510, "alt": 1260, "name": "Bench 14 - East Loading Face"},
-    {"lat": 18.7172, "lng": 81.2525, "alt": 1245, "name": "Switchback Ramp 2"},
-    {"lat": 18.7155, "lng": 81.2538, "alt": 1220, "name": "Mid-Pit Berm Zone"},
-    {"lat": 18.7138, "lng": 81.2546, "alt": 1195, "name": "Fog Valley Choke Point"},
-    {"lat": 18.7120, "lng": 81.2540, "alt": 1170, "name": "Crusher Plant Incline"},
-    {"lat": 18.7105, "lng": 81.2525, "alt": 1145, "name": "Primary Jaw Crusher Hopper #1"},
-    {"lat": 18.7118, "lng": 81.2505, "alt": 1180, "name": "Waste Dump Return Loop"},
-    {"lat": 18.7145, "lng": 81.2492, "alt": 1215, "name": "West Haul Ramp 4"},
-    {"lat": 18.7170, "lng": 81.2498, "alt": 1245, "name": "Upper Pit Access Way"},
-]
+class HazardTypeEnum(str, Enum):
+    NONE = "NONE"
+    MINER_IN_FOG = "MINER_IN_FOG"
+    LV_BLINDSPOT = "LV_BLINDSPOT"
+    EXTREME_FOG = "EXTREME_FOG"
+    BERM_DRIFT_LEFT = "BERM_DRIFT_LEFT"
+    BERM_DRIFT_RIGHT = "BERM_DRIFT_RIGHT"
+    STATIONARY_OBSTACLE = "STATIONARY_OBSTACLE"
 
+# Fixed GPS Waypoints across NMDC Bailadila Deposit 14/5 Haul Road
+BAILADILA_WAYPOINTS = [
+    {"lat": 18.7185, "lng": 81.2510, "alt": 1240.0, "name": "Bench 14 - East Loading Face"},
+    {"lat": 18.7172, "lng": 81.2525, "alt": 1232.0, "name": "Bench 14 - Switchback Ramp"},
+    {"lat": 18.7155, "lng": 81.2538, "alt": 1220.0, "name": "Mid-Pit Berm Zone"},
+    {"lat": 18.7138, "lng": 81.2546, "alt": 1205.0, "name": "Fog Valley Choke Point"},
+    {"lat": 18.7120, "lng": 81.2540, "alt": 1188.0, "name": "Main Haulage Corridor (South)"},
+    {"lat": 18.7105, "lng": 81.2525, "alt": 1165.0, "name": "Primary Crusher #1 Infeed"},
+    {"lat": 18.7118, "lng": 81.2505, "alt": 1180.0, "name": "Crusher Return Incline"},
+    {"lat": 18.7145, "lng": 81.2492, "alt": 1200.0, "name": "Waste Dump Switchback"},
+    {"lat": 18.7170, "lng": 81.2498, "alt": 1225.0, "name": "Waste Dump Return Loop"},
+]
 
 class SimulationEngine:
     def __init__(self):
-        self.mode = "SIMULATION"  # "SIMULATION" or "HARDWARE"
-        self.active_hazard: str = HazardTypeEnum.NONE.value
-        self.hazard_start_time: float = 0.0
-        self.hazard_distance: float = 7.0
-        
-        # Radar scan state
-        self.radar_sweep_angle = 0.0
-        
-        # Environmental / Fog state
-        self.fog_density: float = 0.65  # 0 to 1
-        self.visibility_m: float = 6.2
-        
-        # Multi-Vehicle Fleet State
-        self.fleet_vehicles: Dict[str, Dict[str, Any]] = self._init_fleet()
-        
-        # Incident logs buffer
-        self.incidents: List[IncidentRecord] = []
-        self._last_logged_incident_time: float = 0.0
-        
-        # Multi-device hardware packets buffer: vehicle_id -> { packet, timestamp }
-        self.hardware_packets: Dict[str, Dict[str, Any]] = {}
+        self.mode = "SIMULATION"
+        self.active_hazard = HazardTypeEnum.NONE.value
+        self.hazard_start_time = 0.0
+        self.hazard_distance = 999.0
+        self.hazard_duration = 0.0
 
-        # Simulation playback & manual control states
+        self.fog_density: float = 0.65
+        self.visibility_m: float = 8.5
+        self.radar_sweep_angle: float = 0.0
+
+        self.fleet_vehicles: Dict[str, Dict[str, Any]] = self._init_fleet()
+        self.incidents: List[IncidentRecord] = []
+        self.hardware_packets: Dict[str, Dict[str, Any]] = {}
         self.is_paused: bool = False
-        self.manual_override: bool = False
 
     def _init_fleet(self) -> Dict[str, Dict[str, Any]]:
-        """Initialize fleet of HEMM machines operating in Bailadila Deposit 14."""
         return {
             "HEMM-DUMP-07": {
                 "name": "CAT 777D (100T)",
                 "type": "DUMP_TRUCK",
                 "progress": 0.28,
-                "speed": 18.5,
-                "base_speed": 22.0,
+                "speed": 16.0,
                 "heading": 182.0,
                 "gear": "D3",
-                "rpm": 1680,
-                "pitch": -3.8,
-                "roll": 0.8,
-                "brake_psi": 85.0,
+                "rpm": 1650,
+                "pitch": -2.8,
+                "roll": 0.5,
+                "brake_psi": 60.0,
                 "payload": 96.4,
                 "status": "HAULING",
                 "operator": "Rajesh Verma (ID: EMP-4092)",
@@ -93,19 +81,18 @@ class SimulationEngine:
             "HEMM-DUMP-02": {
                 "name": "Komatsu HD785-7 (100T)",
                 "type": "DUMP_TRUCK",
-                "progress": 0.32,  # Close to DUMP-07 for realistic V2V demonstration
-                "speed": 21.0,
-                "base_speed": 24.0,
+                "progress": 0.35,
+                "speed": 18.0,
                 "heading": 185.0,
                 "gear": "D4",
-                "rpm": 1720,
-                "pitch": -3.5,
-                "roll": -0.5,
-                "brake_psi": 75.0,
+                "rpm": 1700,
+                "pitch": -2.5,
+                "roll": -0.3,
+                "brake_psi": 55.0,
                 "payload": 0.0,
                 "status": "HAULING",
                 "operator": "Amit Soren (ID: EMP-3811)",
-                "zone": "Mid-Pit Berm Zone",
+                "zone": "Fog Valley Choke Point",
                 "collision_state": "CLEAR",
             },
             "HEMM-SHOV-04": {
@@ -113,7 +100,6 @@ class SimulationEngine:
                 "type": "SHOVEL",
                 "progress": 0.02,
                 "speed": 0.0,
-                "base_speed": 0.0,
                 "heading": 90.0,
                 "gear": "N",
                 "rpm": 900,
@@ -130,13 +116,12 @@ class SimulationEngine:
                 "name": "CAT D11T Heavy Dozer",
                 "type": "DOZER",
                 "progress": 0.72,
-                "speed": 6.2,
-                "base_speed": 8.0,
+                "speed": 5.0,
                 "heading": 210.0,
                 "gear": "F1",
-                "rpm": 1800,
-                "pitch": 2.1,
-                "roll": 1.4,
+                "rpm": 1750,
+                "pitch": 1.5,
+                "roll": 0.8,
                 "brake_psi": 90.0,
                 "payload": 0.0,
                 "status": "BERM_PUSHING",
@@ -147,15 +132,14 @@ class SimulationEngine:
             "MINE-LV-03": {
                 "name": "Mahindra Bolero Mine Safety Patrol",
                 "type": "LIGHT_VEHICLE",
-                "progress": 0.29,
-                "speed": 28.0,
-                "base_speed": 35.0,
+                "progress": 0.38,
+                "speed": 25.0,
                 "heading": 180.0,
                 "gear": "4",
-                "rpm": 2200,
-                "pitch": -3.8,
-                "roll": 0.2,
-                "brake_psi": 45.0,
+                "rpm": 2100,
+                "pitch": -2.8,
+                "roll": 0.1,
+                "brake_psi": 40.0,
                 "payload": 0.0,
                 "status": "FOG_ESCORT",
                 "operator": "Safety Officer Devraj (ID: SFT-08)",
@@ -165,10 +149,9 @@ class SimulationEngine:
         }
 
     def _interpolate_gps(self, progress: float) -> (GPSData, float, str):
-        """Calculates interpolated GPS coordinate, heading, and zone along the haul road."""
         total_pts = len(BAILADILA_WAYPOINTS)
         scaled = (progress % 1.0) * total_pts
-        idx = int(scaled)
+        idx = int(scaled) % total_pts
         next_idx = (idx + 1) % total_pts
         frac = scaled - idx
 
@@ -185,32 +168,34 @@ class SimulationEngine:
 
         return GPSData(lat=round(lat, 6), lng=round(lng, 6), altitude_m=round(alt, 1)), round(heading, 1), p1["name"]
 
-    def _calculate_geo_distance_m(self, gps1: GPSData, gps2: GPSData) -> float:
-        """Calculates approximate metric distance between two GPS coordinates."""
-        # Standard equirectangular approximation for pit distances
-        lat_mid = math.radians((gps1.lat + gps2.lat) / 2.0)
-        d_lat = math.radians(gps2.lat - gps1.lat) * 111139.0
-        d_lng = math.radians(gps2.lng - gps1.lng) * (111139.0 * math.cos(lat_mid))
-        d_alt = (gps2.altitude_m - gps1.altitude_m)
-        return math.sqrt(d_lat * d_lat + d_lng * d_lng + d_alt * d_alt)
-
-    def set_hazard(self, hazard_type: str, distance_m: float = 7.0, duration_s: float = 8.0):
-        """Inject a hazard dynamically or clear active hazards with auto-timeout."""
+    def set_hazard(self, hazard_type: str, distance_m: float = 7.0, duration_s: float = 0.0):
         self.active_hazard = hazard_type
         self.hazard_start_time = time.time()
         self.hazard_distance = distance_m
         self.hazard_duration = duration_s
 
     def toggle_mode(self, mode: Optional[str] = None) -> str:
-        """Toggle or set backend operating mode (SIMULATION vs HARDWARE)."""
         if mode:
             self.mode = mode.upper()
         else:
             self.mode = "HARDWARE" if self.mode == "SIMULATION" else "SIMULATION"
         return self.mode
 
+    def toggle_pause(self) -> bool:
+        self.is_paused = not self.is_paused
+        return self.is_paused
+
+    def set_manual_control(self, speed_delta: float = 0.0, steer_delta: float = 0.0, brake: bool = False):
+        v = self.fleet_vehicles.get("HEMM-DUMP-07")
+        if v:
+            if brake:
+                v["speed"] = 0.0
+                v["brake_psi"] = 320.0
+            else:
+                v["speed"] = max(0.0, min(45.0, v["speed"] + speed_delta))
+                v["brake_psi"] = max(20.0, v["brake_psi"] - 25.0)
+
     def ingest_hardware_packet(self, payload: Dict[str, Any]):
-        """Ingest live JSON packet from hardware serial/REST bridge for any specific vehicle."""
         v_id = payload.get("vehicle_id", "HEMM-DUMP-07")
         self.hardware_packets[v_id] = {
             "packet": payload,
@@ -218,124 +203,63 @@ class SimulationEngine:
         }
         self.mode = "HARDWARE"
 
-    def toggle_pause(self) -> bool:
-        """Toggle simulation pause/play state."""
-        self.is_paused = not self.is_paused
-        return self.is_paused
-
-    def set_manual_control(self, speed_delta: float = 0.0, steer_delta: float = 0.0, brake: bool = False):
-        """Apply interactive driver commands (throttle, brake, steer)."""
-        v = self.fleet_vehicles.get("HEMM-DUMP-07")
-        if v:
-            if brake:
-                v["speed"] = max(0.0, v["speed"] - 8.0)
-                v["brake_psi"] = min(350.0, v["brake_psi"] + 60.0)
-            else:
-                v["speed"] = max(0.0, min(45.0, v["speed"] + speed_delta))
-                v["brake_psi"] = max(20.0, v["brake_psi"] - 30.0)
-
-    def update_physics(self, dt: float = 0.05):
-        """Update simulation physics at high frequency (10-20 Hz) for all vehicles."""
+    def update_physics(self, dt: float = 0.1):
         if self.is_paused:
             return
 
         now = time.time()
-        loop_length_meters = 4200.0  # ~4.2 km pit loop
-
-        # Auto-clear injected hazard after duration (e.g. 8 seconds)
-        if self.active_hazard != HazardTypeEnum.NONE.value:
-            if now - self.hazard_start_time > getattr(self, "hazard_duration", 8.0):
+        # Check hazard duration timeout if duration was specified (>0)
+        if self.hazard_duration > 0 and self.active_hazard != HazardTypeEnum.NONE.value:
+            if now - self.hazard_start_time > self.hazard_duration:
                 self.active_hazard = HazardTypeEnum.NONE.value
 
+        loop_length = 4200.0
         for v_id, v_data in self.fleet_vehicles.items():
             if v_data["speed"] > 0:
-                speed_mps = (v_data["speed"] * 1000.0) / 3600.0
-                progress_delta = (speed_mps * dt) / loop_length_meters
-                v_data["progress"] = (v_data["progress"] + progress_delta) % 1.0
+                dist_traveled = (v_data["speed"] * 1000.0 / 3600.0) * dt
+                v_data["progress"] = (v_data["progress"] + dist_traveled / loop_length) % 1.0
 
             gps_val, heading_val, zone_val = self._interpolate_gps(v_data["progress"])
             v_data["gps"] = gps_val
             v_data["heading"] = heading_val
             v_data["zone"] = zone_val
 
-        # Update Fog & Visibility
-        base_fog = 0.60 + 0.15 * math.sin(time.time() * 0.1)
-        if self.active_hazard == HazardTypeEnum.EXTREME_FOG.value:
-            self.fog_density = min(0.98, self.fog_density + dt * 0.4)
-            self.visibility_m = max(1.8, 12.0 * (1.0 - self.fog_density))
-        else:
-            self.fog_density = base_fog
-            self.visibility_m = max(4.0, 18.0 * (1.0 - self.fog_density) + 2.0)
-
-        # Update Radar sweep angle
+        # Rotate radar sweep
         self.radar_sweep_angle = (self.radar_sweep_angle + 240.0 * dt) % 360.0
 
-    def generate_thermal_matrix(self, hotspot_x: Optional[int] = None, hotspot_y: Optional[int] = None, hotspot_type: str = "NONE") -> (List[List[float]], float, float, float, Optional[str]):
-        """Generates 32x24 grid representing MLX90640 thermal infrared sensor."""
-        cols, rows = 32, 24
-        t_now = time.time()
+    def generate_thermal_matrix(self, hotspot_x: Optional[int] = None, hotspot_y: Optional[int] = None, hotspot_label: Optional[str] = None):
+        rows, cols = 24, 32
         matrix = []
-        min_temp = 999.0
-        max_temp = -999.0
-        sum_temp = 0.0
-
         for r in range(rows):
-            row_data = []
+            row = []
             for c in range(cols):
-                noise = random.gauss(0, 0.22)
-                fog_cooling = -1.5 * (1.0 - (r / rows))
-                val = 22.8 + fog_cooling + 0.4 * math.sin(c * 0.3 + t_now * 2.0) + noise
-                row_data.append(round(val, 2))
-            matrix.append(row_data)
+                # Clean infrared base: cooler at top sky, warmer near ground
+                val = 22.0 + (r / rows) * 4.0
+                row.append(round(val, 1))
+            matrix.append(row)
 
-        hotspot_label = None
+        min_t, max_t = 22.0, 26.0
 
-        if hotspot_x is not None and hotspot_y is not None and hotspot_type != "NONE":
-            if hotspot_type == "PERSON":
-                hotspot_label = "HUMAN_MINER_SIGNATURE"
-                core_temp = 36.8 + random.uniform(-0.3, 0.4)
-                for dr in range(-3, 4):
-                    for dc in range(-2, 3):
-                        nr, nc = hotspot_y + dr, hotspot_x + dc
-                        if 0 <= nr < rows and 0 <= nc < cols:
-                            dist = math.sqrt((dr * 1.2)**2 + dc**2)
-                            if dist < 3.5:
-                                heat_boost = (1.0 - dist / 3.5) * (core_temp - matrix[nr][nc])
-                                matrix[nr][nc] = round(matrix[nr][nc] + heat_boost, 2)
-            elif hotspot_type in ["VEHICLE", "HEMM"]:
-                hotspot_label = "V2V_VEHICLE_ENGINE_HEAT"
-                core_temp = 68.5 + random.uniform(-1.0, 1.5)
-                for dr in range(-4, 5):
-                    for dc in range(-5, 6):
-                        nr, nc = hotspot_y + dr, hotspot_x + dc
-                        if 0 <= nr < rows and 0 <= nc < cols:
-                            dist = math.sqrt((dr * 1.0)**2 + (dc * 0.7)**2)
-                            if dist < 4.5:
-                                heat_boost = (1.0 - dist / 4.5) * (core_temp - matrix[nr][nc])
-                                matrix[nr][nc] = round(matrix[nr][nc] + heat_boost, 2)
+        if hotspot_x is not None and hotspot_y is not None:
+            core_temp = 68.0 if "VEHICLE" in str(hotspot_label) else 37.0
+            max_t = core_temp
+            for dr in range(-2, 3):
+                for dc in range(-2, 3):
+                    nr, nc = hotspot_y + dr, hotspot_x + dc
+                    if 0 <= nr < rows and 0 <= nc < cols:
+                        matrix[nr][nc] = core_temp
 
-        for r in range(rows):
-            for c in range(cols):
-                v = matrix[r][c]
-                if v < min_temp: min_temp = v
-                if v > max_temp: max_temp = v
-                sum_temp += v
-
-        center_temp = matrix[12][16]
-        return matrix, min_temp, max_temp, center_temp, hotspot_label
+        center_t = matrix[12][16]
+        return matrix, min_t, max_t, center_t, hotspot_label
 
     def get_telemetry_packet(self, vehicle_id: str = "HEMM-DUMP-07") -> TelemetryPacket:
-        """
-        Generates customized real-time TelemetryPacket for ANY chosen vehicle.
-        Performs multi-vehicle V2V collision checks, radar, thermal, and berm calculations.
-        """
         now = time.time()
         v_info = self.fleet_vehicles.get(vehicle_id, self.fleet_vehicles["HEMM-DUMP-07"])
         my_gps = v_info.get("gps", self._interpolate_gps(v_info["progress"])[0])
         my_speed = v_info["speed"]
-        my_heading = v_info.get("heading", 180.0)
+        my_heading = v_info.get("heading", 182.0)
 
-        # Check for hardware override for this specific vehicle
+        # Hardware mode override
         if self.mode == "HARDWARE" and vehicle_id in self.hardware_packets:
             hw_entry = self.hardware_packets[vehicle_id]
             if now - hw_entry["timestamp"] < 3.5:
@@ -361,135 +285,90 @@ class SimulationEngine:
                     collision_state=hw.get("collision_state", "CLEAR"),
                     thermal_matrix=hw.get("thermal_matrix", []),
                     berm_proximity=BermProximity(
-                        left_dist_m=hw.get("berm_left_m", 4.0),
-                        right_dist_m=hw.get("berm_right_m", 4.0),
+                        left_dist_m=hw.get("berm_left_m", 4.2),
+                        right_dist_m=hw.get("berm_right_m", 4.1),
                     ),
                     mode="HARDWARE",
                     zone_name=v_info.get("zone", "Haul Road"),
                 )
 
-        # SIMULATION & V2V ENGINE
         target_detected = False
         target_dist = 999.0
         rel_speed = 0.0
         targets: List[RadarTarget] = []
         hotspot_x, hotspot_y = None, None
-        hotspot_type = "NONE"
-        hotspot_temp = None
-
-        berm_left = 4.2 + 0.3 * math.sin(now * 0.8)
-        berm_right = 4.1 - 0.3 * math.sin(now * 0.8)
-        lane_offset = 0.0
-        lane_dep_warning = False
-        berm_warning_side = None
+        hotspot_label = None
         collision_state = CollisionStateEnum.CLEAR.value
 
-        # 1. Real-time V2V Mutual Proximity Detection
-        for other_id, other_v in self.fleet_vehicles.items():
-            if other_id == vehicle_id:
-                continue
-            other_gps = other_v.get("gps", self._interpolate_gps(other_v["progress"])[0])
-            dist_to_other = self._calculate_geo_distance_m(my_gps, other_gps)
+        berm_left = 4.2
+        berm_right = 4.1
+        lane_offset = 0.0
 
-            # If other vehicle is within 45 meters, detect it on radar!
-            if dist_to_other < 45.0:
-                target_detected = True
-                target_dist = min(target_dist, dist_to_other)
-                rel_v = other_v["speed"] - my_speed
-                rel_speed = rel_v
-                ttc = dist_to_other / (abs(rel_v) * 1000.0 / 3600.0) if abs(rel_v) > 0.5 else 9.9
-
-                # Approximate azimuth angle from my heading
-                d_lat = other_gps.lat - my_gps.lat
-                d_lng = other_gps.lng - my_gps.lng
-                bearing = (math.degrees(math.atan2(d_lng, d_lat)) + 360) % 360
-                azimuth = (bearing - my_heading + 180) % 360 - 180
-
-                targets.append(
-                    RadarTarget(
-                        target_id=f"V2V-{other_id.replace('HEMM-', '')}",
-                        distance_m=round(dist_to_other, 1),
-                        relative_speed_kmh=round(rel_v, 1),
-                        azimuth_deg=round(azimuth, 1),
-                        snr_db=36.0,
-                        target_type=other_v["type"],
-                        ttc_seconds=round(ttc, 1),
-                    )
-                )
-
-                # Render other vehicle heat signature on thermal canvas
-                hotspot_x = int(16 + (azimuth / 60.0) * 12)
-                hotspot_x = max(2, min(29, hotspot_x))
-                hotspot_y = 12
-                hotspot_type = "VEHICLE"
-                hotspot_temp = 68.5
-
-                if dist_to_other < 8.0 or ttc < 2.5:
-                    collision_state = CollisionStateEnum.CRITICAL.value
-                elif dist_to_other < 20.0:
-                    collision_state = CollisionStateEnum.ADVISORY.value
-
-        # 2. Apply Injected Hazard Scenario (if active)
-        if self.active_hazard == HazardTypeEnum.MINER_IN_FOG.value:
+        # Process Explicit User Injected Hazard Command
+        h = self.active_hazard
+        if h == HazardTypeEnum.MINER_IN_FOG.value:
             target_detected = True
-            elapsed = now - self.hazard_start_time
-            target_dist = max(3.8, self.hazard_distance - elapsed * 1.2)
-            rel_speed = -my_speed * 0.85
-            ttc = target_dist / (abs(rel_speed) * 1000.0 / 3600.0) if abs(rel_speed) > 0.5 else 9.9
-            targets.insert(0,
-                RadarTarget(
-                    target_id="RAD-MINER-01",
-                    distance_m=round(target_dist, 1),
-                    relative_speed_kmh=round(rel_speed, 1),
-                    azimuth_deg=0.0,
-                    snr_db=28.0,
-                    target_type="PERSON",
-                    ttc_seconds=round(ttc, 1),
-                )
-            )
+            target_dist = self.hazard_distance or 7.0
+            rel_speed = -my_speed
+            targets.append(RadarTarget(
+                target_id="RAD-MINER-01",
+                distance_m=target_dist,
+                relative_speed_kmh=rel_speed,
+                azimuth_deg=0.0,
+                snr_db=28.0,
+                target_type="PERSON",
+                ttc_seconds=round(target_dist / (abs(rel_speed) * 1000 / 3600), 1) if abs(rel_speed) > 0.5 else 9.9
+            ))
             hotspot_x, hotspot_y = 16, 12
-            hotspot_type = "PERSON"
-            hotspot_temp = 36.8
-            if target_dist < 6.5 or ttc < 2.5:
-                collision_state = CollisionStateEnum.CRITICAL.value
-            else:
-                collision_state = CollisionStateEnum.ADVISORY.value
+            hotspot_label = "PERSON [MINER]"
+            collision_state = CollisionStateEnum.CRITICAL.value if target_dist < 8.0 else CollisionStateEnum.ADVISORY.value
 
-        elif self.active_hazard == HazardTypeEnum.BERM_DRIFT_LEFT.value:
-            berm_left = max(0.65, 4.2 - (now - self.hazard_start_time) * 0.6)
-            lane_offset = -2.1
-            lane_dep_warning = True
-            berm_warning_side = "LEFT"
+        elif h == HazardTypeEnum.LV_BLINDSPOT.value:
+            target_detected = True
+            target_dist = self.hazard_distance or 8.5
+            rel_speed = -12.0
+            targets.append(RadarTarget(
+                target_id="V2V-MINE-LV-03",
+                distance_m=target_dist,
+                relative_speed_kmh=rel_speed,
+                azimuth_deg=25.0,
+                snr_db=34.0,
+                target_type="LIGHT_VEHICLE",
+                ttc_seconds=2.5
+            ))
+            hotspot_x, hotspot_y = 22, 12
+            hotspot_label = "VEHICLE [BOLERO]"
+            collision_state = CollisionStateEnum.CRITICAL.value if target_dist < 9.0 else CollisionStateEnum.ADVISORY.value
+
+        elif h == HazardTypeEnum.BERM_DRIFT_LEFT.value:
+            berm_left = self.hazard_distance or 0.8
+            lane_offset = -2.0
             target_detected = True
             target_dist = berm_left
-            if berm_left < 1.2:
-                collision_state = CollisionStateEnum.CRITICAL.value
-            else:
-                collision_state = CollisionStateEnum.ADVISORY.value
+            collision_state = CollisionStateEnum.CRITICAL.value if berm_left < 1.2 else CollisionStateEnum.ADVISORY.value
 
-        elif self.active_hazard == HazardTypeEnum.BERM_DRIFT_RIGHT.value:
-            berm_right = max(0.75, 4.0 - (now - self.hazard_start_time) * 0.6)
-            lane_offset = 1.9
-            lane_dep_warning = True
-            berm_warning_side = "RIGHT"
+        elif h == HazardTypeEnum.BERM_DRIFT_RIGHT.value:
+            berm_right = self.hazard_distance or 0.8
+            lane_offset = 2.0
             target_detected = True
             target_dist = berm_right
-            if berm_right < 1.2:
-                collision_state = CollisionStateEnum.CRITICAL.value
-            else:
-                collision_state = CollisionStateEnum.ADVISORY.value
+            collision_state = CollisionStateEnum.CRITICAL.value if berm_right < 1.2 else CollisionStateEnum.ADVISORY.value
 
-        # Generate thermal matrix
-        matrix, min_temp, max_temp, center_temp, hotspot_label = self.generate_thermal_matrix(
-            hotspot_x, hotspot_y, hotspot_type
-        )
+        elif h == HazardTypeEnum.EXTREME_FOG.value:
+            self.fog_density = 0.95
+            self.visibility_m = 1.8
+            collision_state = CollisionStateEnum.ADVISORY.value
+        else:
+            self.fog_density = 0.65
+            self.visibility_m = 8.5
+
+        matrix, min_t, max_t, center_t, label = self.generate_thermal_matrix(hotspot_x, hotspot_y, hotspot_label)
+
+        v_info["collision_state"] = collision_state
 
         ttc_s = None
         if target_detected and target_dist < 900.0 and abs(rel_speed) > 0.5:
             ttc_s = round(target_dist / (abs(rel_speed) * 1000.0 / 3600.0), 1)
-
-        # Update vehicle's collision state
-        v_info["collision_state"] = collision_state
 
         return TelemetryPacket(
             vehicle_id=vehicle_id,
@@ -498,73 +377,64 @@ class SimulationEngine:
             timestamp=now,
             speed_kmh=round(my_speed, 1),
             heading_deg=round(my_heading, 1),
-            gear=v_info.get("gear", "D3"),
-            rpm=v_info.get("rpm", 1650),
-            pitch_deg=v_info.get("pitch", -3.8),
-            roll_deg=v_info.get("roll", 0.8),
-            brake_pressure_psi=round(v_info.get("brake_psi", 85.0), 1),
-            payload_tons=round(v_info.get("payload", 96.4), 1),
+            gear=v_info["gear"],
+            rpm=v_info["rpm"],
+            pitch_deg=v_info["pitch"],
+            roll_deg=v_info["roll"],
+            brake_pressure_psi=v_info["brake_psi"],
+            payload_tons=v_info["payload"],
+            fog_density=round(self.fog_density, 2),
+            visibility_m=round(self.visibility_m, 1),
+            zone_name=v_info.get("zone", "Haul Road"),
             gps=my_gps,
             radar=RadarTelemetry(
                 target_detected=target_detected,
-                distance_m=round(target_dist, 1) if target_detected else 999.0,
+                distance_m=round(target_dist, 1),
                 relative_speed_kmh=round(rel_speed, 1),
+                azimuth_deg=0.0 if not targets else targets[0].azimuth_deg,
+                snr_db=32.0 if target_detected else 0.0,
                 targets=targets,
-                fov_deg=120.0,
-                range_max_m=60.0,
                 sweep_angle_deg=round(self.radar_sweep_angle, 1),
             ),
             collision_state=collision_state,
+            time_to_collision_s=ttc_s,
             thermal_matrix=matrix,
-            thermal_min_c=round(min_temp, 1),
-            thermal_max_c=round(max_temp, 1),
-            thermal_center_c=round(center_temp, 1),
-            hotspot_detected=(hotspot_type != "NONE"),
-            hotspot_temp_c=round(hotspot_temp, 1) if hotspot_temp else None,
+            thermal_min_c=min_t,
+            thermal_max_c=max_t,
+            thermal_center_c=center_t,
+            hotspot_detected=hotspot_x is not None,
             hotspot_grid_x=hotspot_x,
             hotspot_grid_y=hotspot_y,
-            hotspot_label=hotspot_label,
+            hotspot_temp_c=max_t if hotspot_x is not None else None,
+            hotspot_label=label,
             berm_proximity=BermProximity(
                 left_dist_m=round(berm_left, 1),
                 right_dist_m=round(berm_right, 1),
-                lane_center_offset_m=round(lane_offset, 2),
-                lane_departure_warning=lane_dep_warning,
-                berm_warning_side=berm_warning_side,
+                lane_offset_m=round(lane_offset, 1),
+                departure_warning=lane_offset != 0.0,
+                critical_side="LEFT" if berm_left < 1.2 else ("RIGHT" if berm_right < 1.2 else None)
             ),
-            fog_density=round(self.fog_density, 2),
-            visibility_m=round(self.visibility_m, 1),
-            time_to_collision_s=ttc_s,
             mode=self.mode,
-            zone_name=v_info.get("zone", "Mid-Pit Berm Zone"),
+            active_hazard=self.active_hazard,
         )
 
     def get_fleet_summary(self) -> List[FleetVehicleSummary]:
-        """Returns live summary list of all fleet assets across Bailadila Pit."""
-        summaries = []
-        for v_id, v_data in self.fleet_vehicles.items():
-            gps_val = v_data.get("gps", self._interpolate_gps(v_data["progress"])[0])
-            heading_val = v_data.get("heading", 180.0)
-            zone_val = v_data.get("zone", "Haul Road")
+        res = []
+        for v_id, v in self.fleet_vehicles.items():
+            gps_val = v.get("gps", self._interpolate_gps(v["progress"])[0])
+            res.append(FleetVehicleSummary(
+                vehicle_id=v_id,
+                vehicle_name=v["name"],
+                vehicle_type=v["type"],
+                speed_kmh=round(v["speed"], 1),
+                heading_deg=round(v.get("heading", 180.0), 1),
+                gps=gps_val,
+                collision_state=v.get("collision_state", "CLEAR"),
+                current_zone=v.get("zone", "Haul Road"),
+                payload_tons=v["payload"],
+                operator_name=v["operator"],
+                status=v["status"],
+            ))
+        return res
 
-            summaries.append(
-                FleetVehicleSummary(
-                    vehicle_id=v_id,
-                    vehicle_name=v_data["name"],
-                    vehicle_type=v_data["type"],
-                    gps=gps_val,
-                    speed_kmh=v_data["speed"],
-                    heading_deg=heading_val,
-                    collision_state=v_data.get("collision_state", "CLEAR"),
-                    payload_tons=v_data["payload"],
-                    status="EMERGENCY_BRAKE" if v_data.get("collision_state") == "CRITICAL" else v_data["status"],
-                    current_zone=zone_val,
-                    operator_name=v_data["operator"],
-                    radar_target_detected=False,
-                    nearest_target_m=999.0,
-                )
-            )
-        return summaries
-
-
-# Global singleton simulation engine
 sim_engine = SimulationEngine()
