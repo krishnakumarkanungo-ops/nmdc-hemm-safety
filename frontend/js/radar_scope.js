@@ -1,7 +1,7 @@
 /**
- * 24 GHz / 77 GHz mmWave Polar Radar Scope Renderer
- * High-performance 2D Canvas polar sweep displaying detected obstacle points,
- * range rings (5m, 10m, 20m, 50m), angular grid, velocity vectors, and danger cones.
+ * 24 GHz / 77 GHz mmWave Polar Radar Scope Renderer (Ultra-Smooth 60 FPS)
+ * Continuous hardware-interpolated sweep animation, anti-aliased range rings,
+ * velocity vectors, and pulsing danger cones.
  */
 
 class RadarScopeRenderer {
@@ -10,8 +10,9 @@ class RadarScopeRenderer {
     this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
     this.maxRangeMeters = 50.0;
     this.currentData = null;
+    this.collisionState = "CLEAR";
     this.sweepAngle = 0.0;
-    this.pingAnimations = new Map(); // targetId -> { radius, opacity }
+    this.lastFrameTime = performance.now();
     
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -20,9 +21,9 @@ class RadarScopeRenderer {
   resize() {
     if (!this.canvas) return;
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    const size = Math.min(rect.width, rect.height > 200 ? rect.height : 360);
-    this.canvas.width = size * window.devicePixelRatio || 360;
-    this.canvas.height = size * window.devicePixelRatio || 360;
+    const size = Math.min(rect.width || 360, rect.height > 200 ? rect.height : 360);
+    this.canvas.width = Math.floor(size * (window.devicePixelRatio > 1 ? 1.5 : 1));
+    this.canvas.height = Math.floor(size * (window.devicePixelRatio > 1 ? 1.5 : 1));
     this.canvas.style.width = `${size}px`;
     this.canvas.style.height = `${size}px`;
   }
@@ -30,10 +31,6 @@ class RadarScopeRenderer {
   update(radarTelemetry, collisionState) {
     this.currentData = radarTelemetry;
     this.collisionState = collisionState || "CLEAR";
-    if (radarTelemetry && radarTelemetry.sweep_angle_deg !== undefined) {
-      this.sweepAngle = (radarTelemetry.sweep_angle_deg * Math.PI) / 180.0;
-    }
-    this.render();
   }
 
   render() {
@@ -44,6 +41,12 @@ class RadarScopeRenderer {
     const cx = w / 2;
     const cy = h / 2;
     const radius = Math.min(cx, cy) - 16 * (w / 360);
+
+    // Continuous 60 FPS smooth radar rotation (240 deg/s)
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - this.lastFrameTime) / 1000.0);
+    this.lastFrameTime = now;
+    this.sweepAngle = (this.sweepAngle + dt * 4.2) % (Math.PI * 2);
 
     // Clear background
     ctx.clearRect(0, 0, w, h);
@@ -75,14 +78,13 @@ class RadarScopeRenderer {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Range text label
       ctx.fillStyle = "rgba(148, 163, 184, 0.75)";
       ctx.font = `${Math.round(9 * (w / 360))}px 'JetBrains Mono', monospace`;
       ctx.fillText(r.label, cx + 4, cy - rPx + 11);
     });
 
-    // 2. Draw Polar Spokes (30°, 60°, 90°, 120°, 150°, etc.)
-    ctx.strokeStyle = "rgba(30, 58, 95, 0.6)";
+    // 2. Draw Polar Spokes (30° intervals)
+    ctx.strokeStyle = "rgba(30, 58, 95, 0.55)";
     ctx.lineWidth = 1;
     for (let deg = 0; deg < 360; deg += 30) {
       const rad = (deg * Math.PI) / 180;
@@ -104,12 +106,8 @@ class RadarScopeRenderer {
     ctx.strokeStyle = "rgba(6, 182, 212, 0.35)";
     ctx.stroke();
 
-    // 4. Draw Sweeping Phosphor Beam
-    const trailAngle = Math.PI / 3; // 60 deg trail
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-    grad.addColorStop(0, "rgba(6, 182, 212, 0.25)");
-    grad.addColorStop(1, "rgba(6, 182, 212, 0.0)");
-
+    // 4. Draw Sweeping Phosphor Beam (Buttery smooth continuous sweep)
+    const trailAngle = Math.PI / 3;
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -143,13 +141,11 @@ class RadarScopeRenderer {
     // 6. Draw Detected Targets & Bounding Boxes
     if (this.currentData && this.currentData.targets) {
       this.currentData.targets.forEach(tgt => {
-        // Map target azimuth (deg: 0 = straight up in front, positive = right) & distance
         const azRad = ((tgt.azimuth_deg - 90) * Math.PI) / 180.0;
         const distPx = (Math.min(tgt.distance_m, this.maxRangeMeters) / this.maxRangeMeters) * radius;
         const tx = cx + Math.cos(azRad) * distPx;
         const ty = cy + Math.sin(azRad) * distPx;
 
-        // Determine target color based on distance and severity
         let tgtColor = "#10b981";
         let glowColor = "rgba(16, 185, 129, 0.8)";
         if (tgt.distance_m < 8.0) {
@@ -164,54 +160,47 @@ class RadarScopeRenderer {
         ctx.save();
         ctx.strokeStyle = glowColor;
         ctx.lineWidth = 1.5;
-        const rippleR = 8 + (Date.now() % 1000) * 0.015;
+        const rippleR = 8 + (now % 1000) * 0.015;
         ctx.beginPath();
         ctx.arc(tx, ty, rippleR, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Target Bounding Box / Diamond
+        // Target Box
         ctx.fillStyle = tgtColor;
         ctx.shadowColor = tgtColor;
         ctx.shadowBlur = 12;
         ctx.fillRect(tx - 4, ty - 4, 8, 8);
 
-        // Velocity vector line
+        // Velocity vector
         if (tgt.relative_speed_kmh !== 0) {
           const vLen = Math.min(25, Math.abs(tgt.relative_speed_kmh) * 1.5);
+          const vDir = tgt.relative_speed_kmh > 0 ? 1 : -1;
           ctx.beginPath();
           ctx.moveTo(tx, ty);
-          ctx.lineTo(tx, ty + (tgt.relative_speed_kmh < 0 ? vLen : -vLen));
+          ctx.lineTo(tx - Math.cos(azRad) * vLen * vDir, ty - Math.sin(azRad) * vLen * vDir);
           ctx.strokeStyle = tgtColor;
           ctx.lineWidth = 2;
           ctx.stroke();
         }
 
-        // Tactical HUD Tag
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = "#ffffff";
+        // Text Tag
+        ctx.fillStyle = "#f8fafc";
         ctx.font = `bold ${Math.round(9 * (w / 360))}px 'JetBrains Mono', monospace`;
-        const tagText = `${tgt.distance_m.toFixed(1)}m | ${tgt.target_type}`;
-        ctx.fillText(tagText, tx + 8, ty - 2);
-
-        if (tgt.ttc_seconds) {
-          ctx.fillStyle = tgtColor;
-          ctx.fillText(`TTC: ${tgt.ttc_seconds.toFixed(1)}s`, tx + 8, ty + 10);
-        }
-
+        ctx.fillText(`${tgt.distance_m.toFixed(1)}m`, tx + 7, ty - 3);
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = `${Math.round(8 * (w / 360))}px 'JetBrains Mono', monospace`;
+        ctx.fillText(`${tgt.target_id}`, tx + 7, ty + 7);
         ctx.restore();
       });
     }
 
-    // Outer Compass Bearings
-    ctx.fillStyle = "#38bdf8";
-    ctx.font = `bold ${Math.round(10 * (w / 360))}px 'JetBrains Mono', monospace`;
-    ctx.textAlign = "center";
-    ctx.fillText("000° FWD", cx, 14);
-    ctx.fillText("180° REV", cx, h - 4);
-    ctx.textAlign = "left";
-    ctx.fillText("090° R", w - 42, cy + 4);
-    ctx.textAlign = "right";
-    ctx.fillText("270° L", 42, cy + 4);
+    // 7. Tactical Outer Scale Compass Degrees
+    ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+    ctx.font = `bold ${Math.round(8 * (w / 360))}px 'JetBrains Mono', monospace`;
+    ctx.fillText("0° [FWD]", cx - 18, cy - radius + 11);
+    ctx.fillText("90°", cx + radius - 20, cy + 3);
+    ctx.fillText("180°", cx - 10, cy + radius - 4);
+    ctx.fillText("270°", cx - radius + 4, cy + 3);
   }
 }
 
