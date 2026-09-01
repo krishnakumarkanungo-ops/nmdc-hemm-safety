@@ -65,6 +65,10 @@ class SimulationEngine:
         # Multi-device hardware packets buffer: vehicle_id -> { packet, timestamp }
         self.hardware_packets: Dict[str, Dict[str, Any]] = {}
 
+        # Simulation playback & manual control states
+        self.is_paused: bool = False
+        self.manual_override: bool = False
+
     def _init_fleet(self) -> Dict[str, Dict[str, Any]]:
         """Initialize fleet of HEMM machines operating in Bailadila Deposit 14."""
         return {
@@ -214,8 +218,27 @@ class SimulationEngine:
         }
         self.mode = "HARDWARE"
 
+    def toggle_pause(self) -> bool:
+        """Toggle simulation pause/play state."""
+        self.is_paused = not self.is_paused
+        return self.is_paused
+
+    def set_manual_control(self, speed_delta: float = 0.0, steer_delta: float = 0.0, brake: bool = False):
+        """Apply interactive driver commands (throttle, brake, steer)."""
+        v = self.fleet_vehicles.get("HEMM-DUMP-07")
+        if v:
+            if brake:
+                v["speed"] = max(0.0, v["speed"] - 8.0)
+                v["brake_psi"] = min(350.0, v["brake_psi"] + 60.0)
+            else:
+                v["speed"] = max(0.0, min(45.0, v["speed"] + speed_delta))
+                v["brake_psi"] = max(20.0, v["brake_psi"] - 30.0)
+
     def update_physics(self, dt: float = 0.05):
         """Update simulation physics at high frequency (10-20 Hz) for all vehicles."""
+        if self.is_paused:
+            return
+
         now = time.time()
         loop_length_meters = 4200.0  # ~4.2 km pit loop
 
