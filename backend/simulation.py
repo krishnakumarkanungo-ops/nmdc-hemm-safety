@@ -439,8 +439,10 @@ class SimulationEngine:
                 collision_state=v.get("collision_state", "CLEAR"),
                 current_zone=v.get("zone", "Haul Road"),
                 payload_tons=v["payload"],
-                operator_name=v["operator"],
+                operator_name=v.get("operator", "NMDC Driver"),
                 status=v["status"],
+                radar_target_detected=False,
+                nearest_target_m=999.0,
             ))
         return res
 
