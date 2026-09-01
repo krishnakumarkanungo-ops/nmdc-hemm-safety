@@ -408,18 +408,15 @@ class HEMMSafetyApp {
     // 4. Update Collision Alert Banner
     this.updateCollisionBanner(activePacket);
 
-    // 5. Throttled DOM Text & Gauges Update (100ms)
+    // 5. Throttled DOM Text & Gauges Update (80ms)
     const now = Date.now();
-    if (now - this.lastDomUpdate > 100) {
+    if (now - this.lastDomUpdate > 80) {
       this.lastDomUpdate = now;
       this.updateInstrumentCluster(activePacket);
     }
 
-    // 6. Throttled Fleet Table & Dispatch Cards Update (500ms)
-    if (now - this.lastDispatchTableUpdate > 500) {
-      this.lastDispatchTableUpdate = now;
-      this.updateDispatchCards(packet);
-    }
+    // 6. Fleet Table & Dispatch Cards Update
+    this.updateDispatchCards(packet);
   }
 
   updateCollisionBanner(packet) {
@@ -528,9 +525,9 @@ class HEMMSafetyApp {
       await fetch("/api/hazard/inject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hazard_type: hazardType, distance_m: distanceMeters, duration_s: (hazardType === "NONE" ? 0 : 8.0) }),
+        body: JSON.stringify({ hazard_type: hazardType, distance_m: distanceMeters, duration_s: 0.0 }),
       });
-      setTimeout(() => this.fetchTelemetryHttp(), 30);
+      await this.fetchTelemetryHttp();
       this.fetchIncidents();
     } catch (e) {}
   }
