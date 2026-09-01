@@ -129,10 +129,29 @@ class HEMMSafetyApp {
       });
     });
 
-    // Mode & Export Buttons
+    // Mode, Pause & Manual Driver Controls
+    document.getElementById("btn-toggle-pause")?.addEventListener("click", () => this.togglePause());
+    document.getElementById("btn-manual-accel")?.addEventListener("click", () => this.manualControl(5.0, false));
+    document.getElementById("btn-manual-brake")?.addEventListener("click", () => this.manualControl(-10.0, true));
     document.getElementById("btn-toggle-mode")?.addEventListener("click", () => this.toggleMode());
     document.getElementById("btn-export-incidents")?.addEventListener("click", () => this.exportIncidentsCSV());
     document.getElementById("btn-clear-incidents")?.addEventListener("click", () => this.clearIncidents());
+
+    // Keyboard Shortcuts (W = Accel, S = Brake, P = Pause, Space = Emergency Brake)
+    window.addEventListener("keydown", (e) => {
+      // Don't intercept when typing in notes textarea/inputs
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+
+      if (e.key === "w" || e.key === "W" || e.key === "ArrowUp") {
+        this.manualControl(4.0, false);
+      } else if (e.key === "s" || e.key === "S" || e.key === "ArrowDown") {
+        this.manualControl(-6.0, false);
+      } else if (e.key === " " || e.key === "Spacebar") {
+        this.manualControl(0.0, true);
+      } else if (e.key === "p" || e.key === "P") {
+        this.togglePause();
+      }
+    });
 
     // Notes Modal Handlers
     document.getElementById("btn-open-notes")?.addEventListener("click", () => {
@@ -209,6 +228,22 @@ class HEMMSafetyApp {
   }
 
   connectWebSocket() {
+    // 1. Cleanly disconnect any previous socket
+    if (this.ws) {
+      try {
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.close();
+      } catch (e) {}
+      this.ws = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     const wsUrl = `${protocol}//${host}/ws/telemetry`;
@@ -247,7 +282,7 @@ class HEMMSafetyApp {
 
   scheduleReconnect() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2500);
+    this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
   }
 
   // 60 FPS Continuous Avionics Animation Loop
@@ -435,6 +470,30 @@ class HEMMSafetyApp {
       if (res.ok) {
         this.fetchIncidents();
       }
+    } catch (e) {}
+  }
+
+  async togglePause() {
+    try {
+      const res = await fetch("/api/simulation/pause", { method: "POST" });
+      const data = await res.json();
+      const btn = document.getElementById("btn-toggle-pause");
+      if (btn) {
+        btn.innerText = data.is_paused ? "▶️ RESUME" : "⏸️ PAUSE";
+        btn.className = data.is_paused 
+          ? "px-2.5 py-1.5 rounded bg-emerald-900 border border-emerald-500 text-xs font-mono text-emerald-200 font-bold animate-pulse" 
+          : "px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-mono text-amber-300 font-semibold transition-all";
+      }
+    } catch (e) {}
+  }
+
+  async manualControl(speedDelta, brake = false, steerDelta = 0.0) {
+    try {
+      await fetch("/api/simulation/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speed_delta: speedDelta, brake: brake, steer_delta: steerDelta }),
+      });
     } catch (e) {}
   }
 
