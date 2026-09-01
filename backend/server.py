@@ -74,9 +74,9 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# Real-time simulation & broadcast background task (15 Hz)
+# Real-time simulation & broadcast background task (10 Hz optimized for CAN/Radar telemetry)
 async def real_time_broadcaster_loop():
-    fps = 15.0  # 15 Hz stream frequency
+    fps = 10.0  # 10 Hz optimal frequency (100ms interval)
     interval = 1.0 / fps
     while True:
         try:
@@ -112,7 +112,7 @@ async def real_time_broadcaster_loop():
 async def startup_event():
     print("==================================================================")
     print(" HEMM Operator & Fleet Safety System - NMDC Bailadila Active")
-    print(" Target Stream Rate: 15 Hz Multi-Vehicle V2V Broadcast")
+    print(" Stream Rate: 10 Hz Low-Latency Multi-Vehicle V2V Broadcast")
     print("==================================================================")
     asyncio.create_task(real_time_broadcaster_loop())
 
