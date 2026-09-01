@@ -20,6 +20,8 @@ from fastapi.responses import FileResponse, JSONResponse
 # Add backend directory to path
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from models import (
     TelemetryPacket,
