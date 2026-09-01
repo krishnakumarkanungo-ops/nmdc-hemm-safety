@@ -220,11 +220,6 @@ class SimulationEngine:
             return
 
         now = time.time()
-        # Check hazard duration timeout if duration was specified (>0)
-        if self.hazard_duration > 0 and self.active_hazard != HazardTypeEnum.NONE.value:
-            if now - self.hazard_start_time > self.hazard_duration:
-                self.active_hazard = HazardTypeEnum.NONE.value
-
         loop_length = 4200.0
         for v_id, v_data in self.fleet_vehicles.items():
             if v_data["speed"] > 0:
