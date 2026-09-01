@@ -20,18 +20,34 @@ from fastapi.responses import FileResponse, JSONResponse
 
 # Add backend directory to path
 BASE_DIR = Path(__file__).resolve().parent
-FRONTEND_DIR = BASE_DIR.parent / "frontend"
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
+ROOT_DIR = BASE_DIR.parent
+FRONTEND_DIR = ROOT_DIR / "frontend"
 
-from models import (
-    TelemetryPacket,
-    HazardInjectionRequest,
-    HardwareIngressPayload,
-    FleetVehicleSummary,
-    IncidentRecord,
-)
-from simulation import sim_engine, HazardTypeEnum
+for p in [str(BASE_DIR), str(ROOT_DIR)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+try:
+    from backend.models import (
+        TelemetryPacket,
+        HazardInjectionRequest,
+        HardwareIngressPayload,
+        FleetVehicleSummary,
+        IncidentRecord,
+    )
+except ImportError:
+    from models import (
+        TelemetryPacket,
+        HazardInjectionRequest,
+        HardwareIngressPayload,
+        FleetVehicleSummary,
+        IncidentRecord,
+    )
+
+try:
+    from backend.simulation import sim_engine, HazardTypeEnum
+except ImportError:
+    from simulation import sim_engine, HazardTypeEnum
 
 # WebSocket Connection Manager
 class ConnectionManager:
