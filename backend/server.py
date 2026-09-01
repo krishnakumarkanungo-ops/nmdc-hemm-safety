@@ -1,7 +1,7 @@
 """
 FastAPI Server & WebSocket Real-Time Stream Engine
 HEMM Operator & Fleet Safety System (NMDC Bailadila Sector)
-Supports multi-vehicle V2V telemetry, hardware ingress for multiple machines, and 15 Hz stream.
+Supports lifespan background task, multi-vehicle V2V telemetry, and HTTP fallback polling.
 """
 
 import os
@@ -11,6 +11,7 @@ import time
 import asyncio
 from typing import Set, Dict, Any, Optional
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,21 +32,6 @@ from models import (
     IncidentRecord,
 )
 from simulation import sim_engine, HazardTypeEnum
-
-app = FastAPI(
-    title="HEMM Operator & Fleet Safety API - NMDC Bailadila",
-    description="Mission-critical zero-visibility safety system for Heavy Earth Moving Machinery",
-    version="1.0.0",
-)
-
-# CORS middleware for open accessibility
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # WebSocket Connection Manager
 class ConnectionManager:
@@ -73,49 +59,62 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-
-# Real-time simulation & broadcast background task (10 Hz optimized for CAN/Radar telemetry)
+# Background broadcast loop (10 Hz)
 async def real_time_broadcaster_loop():
-    fps = 10.0  # 10 Hz optimal frequency (100ms interval)
+    fps = 10.0
     interval = 1.0 / fps
     while True:
         try:
             start_t = time.time()
-            # Advance simulation physics for all vehicles
             sim_engine.update_physics(dt=interval)
-            
-            # Generate multi-vehicle telemetry packets
+
             all_telemetry = {}
             for v_id in sim_engine.fleet_vehicles.keys():
                 v_packet = sim_engine.get_telemetry_packet(vehicle_id=v_id)
                 all_telemetry[v_id] = v_packet.model_dump()
 
-            # Default packet is HEMM-DUMP-07
             packet_dict = dict(all_telemetry.get("HEMM-DUMP-07", {}))
             packet_dict["all_vehicles_telemetry"] = all_telemetry
             packet_dict["fleet_summary"] = [f.model_dump() for f in sim_engine.get_fleet_summary()]
             packet_dict["incident_count"] = len(sim_engine.incidents)
             packet_dict["active_hazard"] = sim_engine.active_hazard
 
-            # Broadcast to all connected WebSocket clients
             await manager.broadcast_json(packet_dict)
 
             elapsed = time.time() - start_t
-            sleep_time = max(0.001, interval - elapsed)
+            sleep_time = max(0.01, interval - elapsed)
             await asyncio.sleep(sleep_time)
+        except asyncio.CancelledError:
+            break
         except Exception as e:
             print(f"[Broadcaster Error]: {e}", file=sys.stderr)
             await asyncio.sleep(0.1)
 
-
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Guaranteed startup of the simulation background loop
     print("==================================================================")
     print(" HEMM Operator & Fleet Safety System - NMDC Bailadila Active")
-    print(" Stream Rate: 10 Hz Low-Latency Multi-Vehicle V2V Broadcast")
+    print(" 10 Hz Real-Time Broadcast & Lifespan Task Started")
     print("==================================================================")
-    asyncio.create_task(real_time_broadcaster_loop())
+    task = asyncio.create_task(real_time_broadcaster_loop())
+    yield
+    task.cancel()
 
+app = FastAPI(
+    title="HEMM Operator & Fleet Safety API - NMDC Bailadila",
+    description="Mission-critical zero-visibility safety system for Heavy Earth Moving Machinery",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # REST Endpoints
 @app.get("/api/status")
@@ -127,39 +126,43 @@ async def get_system_status():
         "active_clients": len(manager.active_connections),
         "active_hazard": sim_engine.active_hazard,
         "fleet_count": len(sim_engine.fleet_vehicles),
-        "fps_rate": 15,
-        "timestamp": time.time(),
+        "fps_rate": 10,
     }
 
+@app.get("/api/telemetry")
+async def get_telemetry_snapshot(vehicle: str = "HEMM-DUMP-07"):
+    """
+    HTTP snapshot & fallback endpoint for clients when WebSocket is blocked.
+    """
+    all_telemetry = {}
+    for v_id in sim_engine.fleet_vehicles.keys():
+        v_packet = sim_engine.get_telemetry_packet(vehicle_id=v_id)
+        all_telemetry[v_id] = v_packet.model_dump()
 
-@app.get("/api/telemetry/current")
-async def get_current_telemetry(vehicle_id: str = Query("HEMM-DUMP-07")):
-    packet = sim_engine.get_telemetry_packet(vehicle_id=vehicle_id)
-    return packet.model_dump()
-
+    packet_dict = dict(all_telemetry.get(vehicle, all_telemetry.get("HEMM-DUMP-07", {})))
+    packet_dict["all_vehicles_telemetry"] = all_telemetry
+    packet_dict["fleet_summary"] = [f.model_dump() for f in sim_engine.get_fleet_summary()]
+    packet_dict["incident_count"] = len(sim_engine.incidents)
+    packet_dict["active_hazard"] = sim_engine.active_hazard
+    return packet_dict
 
 @app.get("/api/fleet")
-async def get_fleet():
-    fleet = sim_engine.get_fleet_summary()
-    return [f.model_dump() for f in fleet]
-
+async def get_fleet_telemetry():
+    return sim_engine.get_fleet_summary()
 
 @app.get("/api/incidents")
 async def get_incidents():
-    return [inc.model_dump() for inc in sim_engine.incidents]
+    return sim_engine.incidents
 
-
-@app.post("/api/incidents/clear")
+@app.delete("/api/incidents")
 async def clear_incidents():
     sim_engine.incidents.clear()
     return {"status": "SUCCESS", "message": "Incident log cleared"}
 
-
 @app.post("/api/hazard/inject")
-@app.post("/api/simulation/inject_hazard")
 async def inject_hazard(req: HazardInjectionRequest):
-    dur = getattr(req, "duration_s", 8.0) or 8.0
-    sim_engine.set_hazard(req.hazard_type, req.distance_m or 7.0, dur)
+    dur = req.duration_s if req.duration_s is not None else 8.0
+    sim_engine.set_hazard(req.hazard_type, req.distance_m, dur)
     return {
         "status": "SUCCESS",
         "active_hazard": sim_engine.active_hazard,
@@ -168,18 +171,26 @@ async def inject_hazard(req: HazardInjectionRequest):
         "message": f"Hazard '{req.hazard_type}' injected successfully.",
     }
 
+@app.post("/api/simulation/inject_hazard")
+async def inject_hazard_legacy(req: HazardInjectionRequest):
+    dur = req.duration_s if req.duration_s is not None else 8.0
+    sim_engine.set_hazard(req.hazard_type, req.distance_m, dur)
+    return {
+        "status": "SUCCESS",
+        "active_hazard": sim_engine.active_hazard,
+        "distance_m": req.distance_m,
+        "duration_s": dur,
+    }
 
 @app.post("/api/mode/toggle")
 async def toggle_mode(mode: str = None):
     new_mode = sim_engine.toggle_mode(mode)
     return {"status": "SUCCESS", "mode": new_mode}
 
-
 @app.post("/api/simulation/pause")
 async def pause_simulation():
     is_paused = sim_engine.toggle_pause()
     return {"status": "SUCCESS", "is_paused": is_paused}
-
 
 @app.post("/api/simulation/control")
 async def control_simulation(payload: dict):
@@ -189,8 +200,7 @@ async def control_simulation(payload: dict):
     sim_engine.set_manual_control(speed_delta=speed_delta, steer_delta=steer_delta, brake=brake)
     return {"status": "SUCCESS", "speed": sim_engine.fleet_vehicles["HEMM-DUMP-07"]["speed"]}
 
-
-# In-memory and persistent notes storage
+# Shift notes & Operator log
 system_notes = [
     {
         "id": "NOTE-001",
@@ -217,7 +227,7 @@ async def get_notes():
     return system_notes
 
 @app.post("/api/notes")
-async def add_note(req: NoteCreateRequest):
+async def add_note(req: dict):
     note_id = f"NOTE-{len(system_notes) + 1:03d}"
     now = time.time()
     from datetime import datetime
@@ -225,10 +235,10 @@ async def add_note(req: NoteCreateRequest):
         "id": note_id,
         "timestamp": now,
         "timestamp_str": datetime.now().strftime("%H:%M:%S"),
-        "author": req.author or "Operator",
-        "vehicle_id": req.vehicle_id or "HEMM-DUMP-07",
-        "category": req.category or "GENERAL",
-        "content": req.content,
+        "author": req.get("author") or "Operator",
+        "vehicle_id": req.get("vehicle_id") or "HEMM-DUMP-07",
+        "category": req.get("category") or "GENERAL",
+        "content": req.get("content", ""),
     }
     system_notes.insert(0, new_note)
     return {"status": "SUCCESS", "note": new_note}
@@ -241,12 +251,8 @@ async def delete_note(note_id: str):
 
 @app.post("/api/telemetry/ingress")
 async def ingress_hardware_telemetry(payload: HardwareIngressPayload):
-    """
-    Hardware Mode: Accepts live JSON packets from ESP32 / Arduino / USB Serial bridge for ANY vehicle.
-    """
     sim_engine.ingest_hardware_packet(payload.model_dump(exclude_unset=True))
     return {"status": "SUCCESS", "ingested_at": time.time(), "vehicle_id": payload.vehicle_id or "HEMM-DUMP-07", "mode": "HARDWARE"}
-
 
 # WebSockets Endpoints
 @app.websocket("/ws/telemetry")
@@ -274,12 +280,8 @@ async def websocket_telemetry_endpoint(websocket: WebSocket):
     except Exception:
         manager.disconnect(websocket)
 
-
 @app.websocket("/ws/hardware")
 async def websocket_hardware_ingress(websocket: WebSocket):
-    """
-    Dedicated high-speed WebSocket ingress stream for physical ESP32/microcontroller bridge.
-    """
     await websocket.accept()
     try:
         while True:
@@ -292,7 +294,6 @@ async def websocket_hardware_ingress(websocket: WebSocket):
                 await websocket.send_json({"status": "ERR", "detail": str(parse_err)})
     except WebSocketDisconnect:
         pass
-
 
 # Static UI Files Mounting
 if FRONTEND_DIR.exists():
