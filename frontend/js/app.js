@@ -250,19 +250,27 @@ class HEMMSafetyApp {
     this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2500);
   }
 
-  // 60 FPS Decoupled Animation Loop
+  // 60 FPS Continuous Avionics Animation Loop
   startRenderLoop() {
     const frame = () => {
       if (this.hasNewPacket && this.latestPacket) {
-        this.renderFrame(this.latestPacket);
+        this.consumePacket(this.latestPacket);
         this.hasNewPacket = false;
       }
+
+      // Continuous 60 FPS buttery smooth canvas drawing
+      if (this.currentView === "HUD" || this.currentView === "DUAL") {
+        this.radarRenderer?.render();
+        this.thermalRenderer?.render();
+        this.arLaneRenderer?.render();
+      }
+
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
   }
 
-  renderFrame(packet) {
+  consumePacket(packet) {
     const activePacket = (packet.all_vehicles_telemetry && packet.all_vehicles_telemetry[this.activeVehicleId]) 
       ? packet.all_vehicles_telemetry[this.activeVehicleId] 
       : packet;
@@ -270,7 +278,7 @@ class HEMMSafetyApp {
     // 1. Audio Alarm update
     this.audioAlarm?.updateState(activePacket.collision_state);
 
-    // 2. HUD Canvases update
+    // 2. HUD Canvases data update
     if (this.currentView === "HUD" || this.currentView === "DUAL") {
       this.radarRenderer?.update(activePacket.radar, activePacket.collision_state);
 
