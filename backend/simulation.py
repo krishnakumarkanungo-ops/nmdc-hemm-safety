@@ -9,16 +9,28 @@ import math
 from typing import Dict, Any, List, Optional
 from enum import Enum
 
-from models import (
-    TelemetryPacket,
-    RadarTelemetry,
-    RadarTarget,
-    BermProximity,
-    GPSData,
-    FleetVehicleSummary,
-    IncidentRecord,
-    CollisionStateEnum,
-)
+try:
+    from backend.models import (
+        TelemetryPacket,
+        RadarTelemetry,
+        RadarTarget,
+        BermProximity,
+        GPSData,
+        FleetVehicleSummary,
+        IncidentRecord,
+        CollisionStateEnum,
+    )
+except ImportError:
+    from models import (
+        TelemetryPacket,
+        RadarTelemetry,
+        RadarTarget,
+        BermProximity,
+        GPSData,
+        FleetVehicleSummary,
+        IncidentRecord,
+        CollisionStateEnum,
+    )
 
 class HazardTypeEnum(str, Enum):
     NONE = "NONE"
