@@ -1,21 +1,29 @@
 /**
- * Virtual Haul Lane Projection (AR Guide Canvas)
- * Renders 3D perspective haul road lane boundaries, safety berm clearances,
- * centerline drift warnings, and atmospheric fog occlusion for in-cab HUD.
+ * 3D Virtual Haul Lane & Berm AR Projection HUD Canvas (Smooth 60 FPS Lerped)
+ * Synthetic perspective corridor rendering for zero-visibility mining haul roads.
  */
 
 class ARLaneHUDRenderer {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
-    this.bermData = { left_dist_m: 4.2, right_dist_m: 4.0, lane_center_offset_m: 0.0, lane_departure_warning: false };
-    this.fogDensity = 0.65;
-    this.visibilityMeters = 6.5;
+    
+    // Smooth Lerped States
+    this.currentBermLeft = 4.2;
+    this.currentBermRight = 4.1;
+    this.currentFogDensity = 0.65;
+    this.currentVisibility = 12.0;
+    this.currentLaneOffset = 0.0;
+    
+    this.targetBermLeft = 4.2;
+    this.targetBermRight = 4.1;
+    this.targetFogDensity = 0.65;
+    this.targetVisibility = 12.0;
+    this.targetLaneOffset = 0.0;
+    
     this.collisionState = "CLEAR";
-    this.targetDist = 999.0;
-    this.targetType = "NONE";
-    this.roadCurve = 0.0;
-    this.animTime = 0;
+    this.radarData = null;
+    this.roadTextureOffset = 0.0;
 
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -26,28 +34,22 @@ class ARLaneHUDRenderer {
     const rect = this.canvas.parentElement.getBoundingClientRect();
     const w = rect.width || 420;
     const h = rect.height > 200 ? rect.height : 280;
-    this.canvas.width = Math.floor(w * window.devicePixelRatio || 420);
-    this.canvas.height = Math.floor(h * window.devicePixelRatio || 280);
+    this.canvas.width = Math.floor(w * (window.devicePixelRatio > 1 ? 1.5 : 1));
+    this.canvas.height = Math.floor(h * (window.devicePixelRatio > 1 ? 1.5 : 1));
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
   }
 
-  update(bermProximity, fogDensity, visibilityM, collisionState, radarData) {
-    if (bermProximity) this.bermData = bermProximity;
-    if (fogDensity !== undefined) this.fogDensity = fogDensity;
-    if (visibilityM !== undefined) this.visibilityMeters = visibilityM;
-    if (collisionState) this.collisionState = collisionState;
-
-    if (radarData && radarData.target_detected) {
-      this.targetDist = radarData.distance_m;
-      this.targetType = (radarData.targets && radarData.targets[0]) ? radarData.targets[0].target_type : "OBSTACLE";
-    } else {
-      this.targetDist = 999.0;
-      this.targetType = "NONE";
+  update(bermData, fogDensity, visibilityM, collisionState, radarData) {
+    if (bermData) {
+      this.targetBermLeft = bermData.left_dist_m || 4.2;
+      this.targetBermRight = bermData.right_dist_m || 4.1;
+      this.targetLaneOffset = bermData.lane_offset_m || 0.0;
     }
-
-    this.animTime += 0.05;
-    this.render();
+    this.targetFogDensity = fogDensity !== undefined ? fogDensity : 0.65;
+    this.targetVisibility = visibilityM !== undefined ? visibilityM : 12.0;
+    this.collisionState = collisionState || "CLEAR";
+    this.radarData = radarData;
   }
 
   render() {
@@ -56,163 +58,124 @@ class ARLaneHUDRenderer {
     const w = this.canvas.width;
     const h = this.canvas.height;
 
-    // Clear canvas
+    // Smooth Lerp transitions (15% per frame)
+    this.currentBermLeft += (this.targetBermLeft - this.currentBermLeft) * 0.15;
+    this.currentBermRight += (this.targetBermRight - this.currentBermRight) * 0.15;
+    this.currentFogDensity += (this.targetFogDensity - this.currentFogDensity) * 0.1;
+    this.currentVisibility += (this.targetVisibility - this.currentVisibility) * 0.1;
+    this.currentLaneOffset += (this.targetLaneOffset - this.currentLaneOffset) * 0.15;
+
+    // Road animation motion
+    this.roadTextureOffset = (this.roadTextureOffset + 0.02) % 1.0;
+
+    // 1. Clear background & draw dark fog gradient
     ctx.clearRect(0, 0, w, h);
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    bgGrad.addColorStop(0, "#080d1a");
+    bgGrad.addColorStop(0.5, "#0d1527");
+    bgGrad.addColorStop(1, "#070b14");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
 
-    // Horizon and Perspective parameters
-    const horizonY = h * 0.42;
-    const vpX = w / 2 + this.roadCurve * 40; // Vanishing point
-    const vpY = horizonY;
+    // 2. Synthetic 3D Perspective Road Geometry
+    const vpX = w / 2 + this.currentLaneOffset * (w * 0.04);
+    const vpY = h * 0.38;
 
-    // 1. Draw Haul Road Floor Gradient
-    const roadGrad = ctx.createLinearGradient(0, horizonY, 0, h);
-    roadGrad.addColorStop(0, "#0e1726");
-    roadGrad.addColorStop(1, "#182235");
+    const btmLeftX = w * 0.12 - (4.0 - this.currentBermLeft) * (w * 0.05);
+    const btmRightX = w * 0.88 + (4.0 - this.currentBermRight) * (w * 0.05);
+    const btmY = h;
+
+    const topWidth = w * 0.18;
+    const topLeftX = vpX - topWidth / 2;
+    const topRightX = vpX + topWidth / 2;
+
+    // Haul Road Surface Polygon
+    ctx.beginPath();
+    ctx.moveTo(topLeftX, vpY);
+    ctx.lineTo(topRightX, vpY);
+    ctx.lineTo(btmRightX, btmY);
+    ctx.lineTo(btmLeftX, btmY);
+    ctx.closePath();
+
+    const roadGrad = ctx.createLinearGradient(0, vpY, 0, btmY);
+    roadGrad.addColorStop(0, "rgba(15, 23, 42, 0.95)");
+    roadGrad.addColorStop(1, "rgba(30, 41, 59, 0.98)");
     ctx.fillStyle = roadGrad;
-    ctx.fillRect(0, horizonY, w, h - horizonY);
+    ctx.fill();
 
-    // 2. Perspective Road Boundaries & Berm Walls
-    const roadHalfWidthBottom = w * 0.42;
-    const roadHalfWidthTop = w * 0.04;
-    const offsetPx = (this.bermData.lane_center_offset_m || 0) * (w * 0.08);
-
-    const leftBottom = vpX - roadHalfWidthBottom + offsetPx;
-    const rightBottom = vpX + roadHalfWidthBottom + offsetPx;
-    const leftTop = vpX - roadHalfWidthTop;
-    const rightTop = vpX + roadHalfWidthTop;
-
-    // Draw Left Safety Berm Guideline
-    const leftColor = this.bermData.berm_warning_side === "LEFT" || this.bermData.left_dist_m < 1.5 ? "#ef4444" : (this.bermData.left_dist_m < 2.5 ? "#f59e0b" : "#06b6d4");
+    // 3. Virtual AR Center Trajectory Dashed Line
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(leftTop, vpY);
-    ctx.lineTo(leftBottom, h);
-    ctx.strokeStyle = leftColor;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = leftColor;
-    ctx.shadowBlur = 12;
-    ctx.stroke();
-
-    // Berm neon distance markers (Left)
-    for (let i = 1; i <= 4; i++) {
-      const t = i / 4.0;
-      const py = vpY + (h - vpY) * t;
-      const px = leftTop + (leftBottom - leftTop) * t;
-      ctx.beginPath();
-      ctx.moveTo(px - 15 * t, py);
-      ctx.lineTo(px, py);
-      ctx.strokeStyle = leftColor;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Draw Right Safety Berm Guideline
-    const rightColor = this.bermData.berm_warning_side === "RIGHT" || this.bermData.right_dist_m < 1.5 ? "#ef4444" : (this.bermData.right_dist_m < 2.5 ? "#f59e0b" : "#06b6d4");
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(rightTop, vpY);
-    ctx.lineTo(rightBottom, h);
-    ctx.strokeStyle = rightColor;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = rightColor;
-    ctx.shadowBlur = 12;
-    ctx.stroke();
-
-    // Berm neon distance markers (Right)
-    for (let i = 1; i <= 4; i++) {
-      const t = i / 4.0;
-      const py = vpY + (h - vpY) * t;
-      const px = rightTop + (rightBottom - rightTop) * t;
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + 15 * t, py);
-      ctx.strokeStyle = rightColor;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 3. Centerline Haul Road Guidance (Animated Dashed Green/Yellow Line)
-    const centerBottom = (leftBottom + rightBottom) / 2;
-    const centerTop = (leftTop + rightTop) / 2;
-    const centerColor = this.bermData.lane_departure_warning ? "#f59e0b" : "#10b981";
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(centerTop, vpY);
-    ctx.lineTo(centerBottom, h);
-    ctx.strokeStyle = centerColor;
+    ctx.strokeStyle = "#38bdf8";
     ctx.lineWidth = 3;
-    ctx.setLineDash([16, 12]);
-    ctx.lineDashOffset = -this.animTime * 40;
-    ctx.shadowColor = centerColor;
-    ctx.shadowBlur = 8;
+    ctx.setLineDash([12, 10]);
+    ctx.lineDashOffset = -this.roadTextureOffset * 22;
+    ctx.beginPath();
+    ctx.moveTo(vpX, vpY);
+    ctx.lineTo(w / 2, btmY);
     ctx.stroke();
-    ctx.setLineDash([]);
     ctx.restore();
 
-    // 4. AR Obstacle 3D Holographic Bracket (if target detected ahead)
-    if (this.targetDist < 40.0) {
-      // Perspective distance mapping (0m is bottom, 40m is near horizon)
-      const normD = Math.max(0.05, Math.min(1.0, this.targetDist / 40.0));
-      const objY = h - (h - vpY) * (1.0 - normD);
-      const scale = Math.max(0.2, (1.0 - normD * 0.8));
-      const objW = 90 * scale * (w / 420);
-      const objH = 90 * scale * (h / 280);
-      const objX = centerTop + (centerBottom - centerTop) * (1.0 - normD);
+    // 4. Berm Safety Walls (Left & Right AR Guide Rails)
+    const leftBermCritical = this.currentBermLeft < 1.2;
+    const rightBermCritical = this.currentBermRight < 1.2;
 
-      const obColor = this.collisionState === "CRITICAL" ? "#ef4444" : "#f59e0b";
+    // Left Berm Line
+    ctx.beginPath();
+    ctx.moveTo(topLeftX, vpY);
+    ctx.lineTo(btmLeftX, btmY);
+    ctx.strokeStyle = leftBermCritical ? "#ef4444" : "#10b981";
+    ctx.lineWidth = leftBermCritical ? 4 : 2.5;
+    ctx.shadowColor = leftBermCritical ? "#ef4444" : "#10b981";
+    ctx.shadowBlur = leftBermCritical ? 15 : 6;
+    ctx.stroke();
+
+    // Right Berm Line
+    ctx.beginPath();
+    ctx.moveTo(topRightX, vpY);
+    ctx.lineTo(btmRightX, btmY);
+    ctx.strokeStyle = rightBermCritical ? "#ef4444" : "#10b981";
+    ctx.lineWidth = rightBermCritical ? 4 : 2.5;
+    ctx.shadowColor = rightBermCritical ? "#ef4444" : "#10b981";
+    ctx.shadowBlur = rightBermCritical ? 15 : 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 5. Dynamic AR Obstacle Box in Fog (if target in front)
+    if (this.radarData && this.radarData.target_detected && this.radarData.distance_m < 35.0) {
+      const d = Math.max(2.0, Math.min(35.0, this.radarData.distance_m));
+      const depthFactor = 1.0 - (d / 35.0); // 0 (far) to 1 (near)
+
+      const boxY = vpY + (btmY - vpY) * (depthFactor * 0.85);
+      const boxW = Math.max(30, 110 * depthFactor);
+      const boxH = Math.max(25, 80 * depthFactor);
+      const boxX = vpX - boxW / 2;
 
       ctx.save();
-      ctx.strokeStyle = obColor;
-      ctx.lineWidth = 3;
-      ctx.shadowColor = obColor;
-      ctx.shadowBlur = 14;
+      const boxColor = d < 8.0 ? "#ef4444" : "#f59e0b";
+      ctx.strokeStyle = boxColor;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(boxX, boxY - boxH, boxW, boxH);
 
-      // 3D Bracket Reticle
-      ctx.strokeRect(objX - objW / 2, objY - objH, objW, objH);
+      ctx.fillStyle = `${boxColor}33`;
+      ctx.fillRect(boxX, boxY - boxH, boxW, boxH);
 
-      // Warning Header
-      ctx.fillStyle = obColor;
+      ctx.fillStyle = boxColor;
       ctx.font = `bold ${Math.round(11 * (w / 420))}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText(`⚠️ ${this.targetDist.toFixed(1)}m | ${this.targetType}`, objX, objY - objH - 8);
-
-      if (this.collisionState === "CRITICAL") {
-        ctx.fillStyle = "#ffffff";
-        ctx.font = `bold ${Math.round(13 * (w / 420))}px 'Chakra Petch', sans-serif`;
-        ctx.fillText("CRITICAL BRAKE NOW", objX, objY - objH / 2);
-      }
+      ctx.fillText(`⚠️ OBSTACLE ${d.toFixed(1)}m`, boxX, boxY - boxH - 6);
       ctx.restore();
     }
 
-    // 5. Heavy Fog Atmospheric Occlusion Layer
-    const fogGrad = ctx.createLinearGradient(0, 0, 0, h);
-    const fogAlpha = Math.min(0.92, this.fogDensity * 0.85);
-    fogGrad.addColorStop(0, `rgba(15, 23, 42, ${fogAlpha + 0.1})`);
-    fogGrad.addColorStop(0.45, `rgba(15, 23, 42, ${fogAlpha})`);
-    fogGrad.addColorStop(1, `rgba(15, 23, 42, ${fogAlpha * 0.3})`);
-    ctx.fillStyle = fogGrad;
+    // 6. Synthetic Fog Overlay Layer
+    const fogAlpha = Math.min(0.75, Math.max(0.2, this.currentFogDensity * 0.65));
+    ctx.fillStyle = `rgba(15, 23, 42, ${fogAlpha})`;
     ctx.fillRect(0, 0, w, h);
 
-    // 6. HUD Tactical Berm Clearance Readouts
-    ctx.font = `bold ${Math.round(12 * (w / 420))}px 'JetBrains Mono', monospace`;
-    
-    // Left Berm Tag
-    ctx.fillStyle = leftColor;
-    ctx.textAlign = "left";
-    ctx.fillText(`BERM-L: ${this.bermData.left_dist_m.toFixed(1)}m`, 14, h - 16);
-
-    // Right Berm Tag
-    ctx.fillStyle = rightColor;
-    ctx.textAlign = "right";
-    ctx.fillText(`BERM-R: ${this.bermData.right_dist_m.toFixed(1)}m`, w - 14, h - 16);
-
-    // Fog Visibility Header
-    ctx.textAlign = "center";
-    ctx.fillStyle = this.visibilityMeters < 5.0 ? "#ef4444" : (this.visibilityMeters < 10.0 ? "#f59e0b" : "#38bdf8");
-    ctx.fillText(`👁️ VISIBILITY: ${this.visibilityMeters.toFixed(1)}m [${this.visibilityMeters < 4 ? "ZERO-VIS CODE BLACK" : "HEAVY MINE FOG"}]`, w / 2, 22);
+    // 7. HUD Telemetry Overlay Text
+    ctx.fillStyle = "#38bdf8";
+    ctx.font = `bold ${Math.round(10 * (w / 420))}px 'JetBrains Mono', monospace`;
+    ctx.fillText(`BERM L: ${this.currentBermLeft.toFixed(1)}m`, 14, h - 14);
+    ctx.fillText(`BERM R: ${this.currentBermRight.toFixed(1)}m`, w - 105, h - 14);
+    ctx.fillText(`AR VISIBILITY: ${this.currentVisibility.toFixed(1)}m`, 14, 22);
   }
 }
 
