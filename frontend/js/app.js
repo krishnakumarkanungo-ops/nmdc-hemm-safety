@@ -52,14 +52,17 @@ class HEMMSafetyApp {
         if (this.dispatchMap) {
           this.dispatchMap.selectedVehicle = this.activeVehicleId;
         }
+      });
+    }
+
     // Initialize Renderers Safely
-    try { this.radarRenderer = new RadarScopeRenderer("radar-canvas"); } catch (e) {}
-    try { this.thermalRenderer = new ThermalVisionRenderer("thermal-canvas"); } catch (e) {}
-    try { this.arLaneRenderer = new ARLaneHUDRenderer("ar-lane-canvas"); } catch (e) {}
+    try { this.radarRenderer = new RadarScopeRenderer("radar-canvas"); } catch (e) { console.error("Radar init error:", e); }
+    try { this.thermalRenderer = new ThermalVisionRenderer("thermal-canvas"); } catch (e) { console.error("Thermal init error:", e); }
+    try { this.arLaneRenderer = new ARLaneHUDRenderer("ar-lane-canvas"); } catch (e) { console.error("AR Lane init error:", e); }
     try {
       this.dispatchMap = new DispatchMapRenderer("dispatch-map");
       if (this.dispatchMap) this.dispatchMap.selectedVehicle = this.activeVehicleId;
-    } catch (e) {}
+    } catch (e) { console.error("Map init error:", e); }
 
     // Draw Instant Baseline Visuals (Never Blank on load)
     this.renderInitialState();
