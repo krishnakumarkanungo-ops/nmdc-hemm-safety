@@ -1,102 +1,126 @@
 /**
- * Master Application Controller & WebSocket Pipeline
- * HEMM Operator & Fleet Safety System (NMDC Bailadila Sector)
+ * Main Application Controller (NMDC Bailadila HEMM Safety System)
+ * Ultra-Responsive Decoupled 60 FPS Render Loop with Zero-Lag Input Handling
  */
+
+function fastSetText(id, text) {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== text) {
+    el.textContent = text;
+  }
+}
 
 class HEMMSafetyApp {
   constructor() {
     this.ws = null;
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    this.wsUrl = `${protocol}//${window.location.host}/ws/telemetry`;
     this.reconnectTimer = null;
     this.currentView = "HUD"; // "HUD", "DISPATCH", "DUAL"
-    this.audioAlarm = window.cabAudio;
-    this.lastPacket = null;
-
-    // Active vehicle selection (from URL query param ?vehicle=HEMM-DUMP-02 or default)
-    const urlParams = new URLSearchParams(window.location.search);
-    this.activeVehicleId = urlParams.get('vehicle') || "HEMM-DUMP-07";
+    this.latestPacket = null;
+    this.hasNewPacket = false;
+    this.activeVehicleId = "HEMM-DUMP-07";
 
     // Component Renderers
     this.radarRenderer = null;
     this.thermalRenderer = null;
     this.arLaneRenderer = null;
     this.dispatchMap = null;
+    this.audioAlarm = window.cabAudio || null;
+
+    // Throttle trackers
+    this.lastDomUpdate = 0;
+    this.lastDispatchTableUpdate = 0;
 
     this.init();
   }
 
   init() {
-    // Sync vehicle selector dropdown
-    const selectVeh = document.getElementById("select-active-vehicle");
-    if (selectVeh) {
-      selectVeh.value = this.activeVehicleId;
-      selectVeh.addEventListener("change", (e) => {
+    // Parse URL parameter ?vehicle=HEMM-DUMP-07
+    const urlParams = new URLSearchParams(window.location.search);
+    const vehicleParam = urlParams.get("vehicle");
+    if (vehicleParam) {
+      this.activeVehicleId = vehicleParam.toUpperCase();
+    }
+
+    const selectVehicle = document.getElementById("select-active-vehicle");
+    if (selectVehicle) {
+      selectVehicle.value = this.activeVehicleId;
+      selectVehicle.addEventListener("change", (e) => {
         this.activeVehicleId = e.target.value;
-        if (this.dispatchMap) this.dispatchMap.selectedVehicle = this.activeVehicleId;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set("vehicle", this.activeVehicleId);
+        window.history.replaceState({}, "", newUrl);
+        if (this.dispatchMap) {
+          this.dispatchMap.selectedVehicle = this.activeVehicleId;
+        }
       });
     }
 
-    // 1. Initialize Renderers
+    // Initialize Renderers
     this.radarRenderer = new RadarScopeRenderer("radar-canvas");
     this.thermalRenderer = new ThermalVisionRenderer("thermal-canvas");
     this.arLaneRenderer = new ARLaneHUDRenderer("ar-lane-canvas");
-    this.dispatchMap = new DispatchMapRenderer("dispatch-map-container");
-    if (this.dispatchMap) this.dispatchMap.selectedVehicle = this.activeVehicleId;
+    this.dispatchMap = new DispatchMapRenderer("dispatch-map");
+    if (this.dispatchMap) {
+      this.dispatchMap.selectedVehicle = this.activeVehicleId;
+    }
 
-    // 2. Setup Event Listeners
-    this.setupUIHandlers();
+    // Bind UI Event Listeners
+    this.bindEvents();
 
-    // 3. Connect WebSocket Stream
+    // Connect Real-Time Stream
     this.connectWebSocket();
 
-    // 4. Start incident polling fallback
+    // Start 60 FPS Decoupled Animation Loop
+    this.startRenderLoop();
+
+    // Background Polling (Clean 10-second interval)
     this.fetchIncidents();
+    setInterval(() => this.fetchIncidents(), 10000);
   }
 
-  setupUIHandlers() {
-    // Audio unlock on user interaction
+  bindEvents() {
+    // Unlock Audio Context on first interaction
     const unlockAudio = () => {
       if (this.audioAlarm) {
         this.audioAlarm.initContext();
       }
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("touchstart", unlockAudio);
     };
-    document.addEventListener('click', unlockAudio);
-    document.addEventListener('touchstart', unlockAudio);
+    window.addEventListener("click", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+    window.addEventListener("touchstart", unlockAudio, { once: true });
 
     // View Switcher Buttons
     document.getElementById("btn-view-hud")?.addEventListener("click", () => this.switchView("HUD"));
     document.getElementById("btn-view-dispatch")?.addEventListener("click", () => this.switchView("DISPATCH"));
     document.getElementById("btn-view-dual")?.addEventListener("click", () => this.switchView("DUAL"));
 
-    // Audio Controls
-    const muteBtn = document.getElementById("btn-audio-mute");
-    muteBtn?.addEventListener("click", () => {
-      const isMuted = !this.audioAlarm.isMuted;
-      this.audioAlarm.setMute(isMuted);
-      muteBtn.innerHTML = isMuted 
-        ? `<span class="text-slate-400">🔇 AUDIO MUTED</span>` 
-        : `<span class="text-emerald-400">🔊 AUDIO ALARM ACTIVE</span>`;
+    // Audio Mute Toggle
+    const btnMute = document.getElementById("btn-audio-mute");
+    btnMute?.addEventListener("click", () => {
+      if (!this.audioAlarm) return;
+      const willMute = !this.audioAlarm.isMuted;
+      this.audioAlarm.setMute(willMute);
+      if (btnMute) {
+        btnMute.innerHTML = willMute
+          ? `<span class="text-rose-400">🔇 CAB AUDIO MUTED</span>`
+          : `<span class="text-emerald-400">🔊 CAB AUDIO ACTIVE</span>`;
+      }
     });
 
-    const volSlider = document.getElementById("slider-volume");
-    volSlider?.addEventListener("input", (e) => {
-      this.audioAlarm.setVolume(parseFloat(e.target.value));
-    });
-
-    // Thermal Palette Switcher
+    // Thermal Palette Selectors
     document.querySelectorAll(".btn-thermal-palette").forEach(btn => {
       btn.addEventListener("click", (e) => {
         const pal = e.target.getAttribute("data-palette");
         document.querySelectorAll(".btn-thermal-palette").forEach(b => b.classList.remove("bg-cyan-600", "text-white"));
         e.target.classList.add("bg-cyan-600", "text-white");
-        this.thermalRenderer.setPalette(pal);
+        this.thermalRenderer?.setPalette(pal);
       });
     });
 
-    // Hazard Injection Quick Triggers
+    // Hazard Injection Triggers
     document.querySelectorAll(".btn-hazard-trigger").forEach(btn => {
       btn.addEventListener("click", (e) => {
         const hazardType = e.currentTarget.getAttribute("data-hazard");
@@ -105,18 +129,10 @@ class HEMMSafetyApp {
       });
     });
 
-    // Hardware Mode Toggle
-    document.getElementById("btn-toggle-mode")?.addEventListener("click", () => {
-      this.toggleMode();
-    });
-
-    // Incident Export Buttons
-    document.getElementById("btn-export-incidents")?.addEventListener("click", () => {
-      this.exportIncidentsCSV();
-    });
-    document.getElementById("btn-clear-incidents")?.addEventListener("click", () => {
-      this.clearIncidents();
-    });
+    // Mode & Export Buttons
+    document.getElementById("btn-toggle-mode")?.addEventListener("click", () => this.toggleMode());
+    document.getElementById("btn-export-incidents")?.addEventListener("click", () => this.exportIncidentsCSV());
+    document.getElementById("btn-clear-incidents")?.addEventListener("click", () => this.clearIncidents());
 
     // Notes Modal Handlers
     document.getElementById("btn-open-notes")?.addEventListener("click", () => {
@@ -126,12 +142,8 @@ class HEMMSafetyApp {
     document.getElementById("btn-close-notes-modal")?.addEventListener("click", () => {
       document.getElementById("notes-modal")?.classList.add("hidden");
     });
-    document.getElementById("btn-submit-note")?.addEventListener("click", () => {
-      this.submitNote();
-    });
-    document.getElementById("btn-export-notes-csv")?.addEventListener("click", () => {
-      this.exportNotesCSV();
-    });
+    document.getElementById("btn-submit-note")?.addEventListener("click", () => this.submitNote());
+    document.getElementById("btn-export-notes-csv")?.addEventListener("click", () => this.exportNotesCSV());
 
     // Hardware Docs Modal
     document.getElementById("btn-hw-guide")?.addEventListener("click", () => {
@@ -154,27 +166,22 @@ class HEMMSafetyApp {
 
     const activeBtn = document.getElementById(`btn-view-${viewName.toLowerCase()}`);
     if (activeBtn) {
-      activeBtn.classList.add("bg-cyan-600", "text-white", "border-cyan-400");
       activeBtn.classList.remove("text-slate-300");
+      activeBtn.classList.add("bg-cyan-600", "text-white", "border-cyan-400");
     }
 
     if (viewName === "HUD") {
       hudContainer?.classList.remove("hidden");
       dispatchContainer?.classList.add("hidden");
-      hudContainer?.classList.remove("lg:w-1/2");
+      dispatchContainer?.classList.remove("grid-cols-1", "lg:grid-cols-2");
     } else if (viewName === "DISPATCH") {
       hudContainer?.classList.add("hidden");
       dispatchContainer?.classList.remove("hidden");
-      dispatchContainer?.classList.remove("lg:w-1/2");
-      if (this.dispatchMap && this.dispatchMap.map) {
-        setTimeout(() => this.dispatchMap.map.invalidateSize(), 200);
-      }
+      setTimeout(() => this.dispatchMap?.map?.invalidateSize(), 50);
     } else if (viewName === "DUAL") {
       hudContainer?.classList.remove("hidden");
       dispatchContainer?.classList.remove("hidden");
-      if (this.dispatchMap && this.dispatchMap.map) {
-        setTimeout(() => this.dispatchMap.map.invalidateSize(), 200);
-      }
+      setTimeout(() => this.dispatchMap?.map?.invalidateSize(), 50);
     }
 
     // Trigger canvas resize
@@ -182,33 +189,30 @@ class HEMMSafetyApp {
       this.radarRenderer?.resize();
       this.thermalRenderer?.resize();
       this.arLaneRenderer?.resize();
-    }, 150);
+    }, 100);
   }
 
   connectWebSocket() {
-    if (this.ws) {
-      try { this.ws.close(); } catch (e) {}
-    }
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/ws/telemetry`;
 
     const statusLed = document.getElementById("ws-status-led");
     const statusText = document.getElementById("ws-status-text");
 
     try {
-      this.ws = new WebSocket(this.wsUrl);
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         if (statusLed) statusLed.className = "led-indicator led-green";
-        if (statusText) statusText.innerText = "STREAM ONLINE (15 Hz)";
-        console.log("WebSocket connected to HEMM Telemetry Stream.");
+        if (statusText) statusText.innerText = "STREAM ONLINE (10 Hz)";
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const packet = JSON.parse(event.data);
-          this.processTelemetryPacket(packet);
-        } catch (e) {
-          console.error("JSON parse error:", e);
-        }
+          this.latestPacket = JSON.parse(event.data);
+          this.hasNewPacket = true;
+        } catch (e) {}
       };
 
       this.ws.onclose = () => {
@@ -217,8 +221,8 @@ class HEMMSafetyApp {
         this.scheduleReconnect();
       };
 
-      this.ws.onerror = (err) => {
-        console.warn("WebSocket error:", err);
+      this.ws.onerror = () => {
+        this.ws?.close();
       };
     } catch (e) {
       this.scheduleReconnect();
@@ -227,60 +231,74 @@ class HEMMSafetyApp {
 
   scheduleReconnect() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2000);
+    this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 2500);
   }
 
-  processTelemetryPacket(packet) {
-    this.lastPacket = packet;
+  // 60 FPS Decoupled Animation Loop
+  startRenderLoop() {
+    const frame = () => {
+      if (this.hasNewPacket && this.latestPacket) {
+        this.renderFrame(this.latestPacket);
+        this.hasNewPacket = false;
+      }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
 
-    // Route telemetry for the actively selected vehicle
+  renderFrame(packet) {
     const activePacket = (packet.all_vehicles_telemetry && packet.all_vehicles_telemetry[this.activeVehicleId]) 
       ? packet.all_vehicles_telemetry[this.activeVehicleId] 
       : packet;
 
-    // 1. Update Collision Alert Banner
+    // 1. Audio Alarm update
+    this.audioAlarm?.updateState(activePacket.collision_state);
+
+    // 2. HUD Canvases update
+    if (this.currentView === "HUD" || this.currentView === "DUAL") {
+      this.radarRenderer?.update(activePacket.radar, activePacket.collision_state);
+
+      const hotspotInfo = {
+        detected: activePacket.hotspot_detected,
+        gx: activePacket.hotspot_grid_x,
+        gy: activePacket.hotspot_grid_y,
+        temp: activePacket.hotspot_temp_c,
+        label: activePacket.hotspot_label,
+      };
+      this.thermalRenderer?.update(
+        activePacket.thermal_matrix,
+        activePacket.thermal_min_c,
+        activePacket.thermal_max_c,
+        hotspotInfo
+      );
+
+      this.arLaneRenderer?.update(
+        activePacket.berm_proximity,
+        activePacket.fog_density,
+        activePacket.visibility_m,
+        activePacket.collision_state,
+        activePacket.radar
+      );
+    }
+
+    // 3. Dispatch Map update
+    if (this.currentView === "DISPATCH" || this.currentView === "DUAL") {
+      this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density);
+    }
+
+    // 4. Update Collision Alert Banner
     this.updateCollisionBanner(activePacket);
 
-    // 2. Update Web Audio Tone
-    this.audioAlarm.updateState(activePacket.collision_state);
-
-    // 3. Update mmWave Radar Canvas
-    this.radarRenderer?.update(activePacket.radar, activePacket.collision_state);
-
-    // 4. Update Thermal Infrared Canvas
-    const hotspotInfo = {
-      detected: activePacket.hotspot_detected,
-      gx: activePacket.hotspot_grid_x,
-      gy: activePacket.hotspot_grid_y,
-      temp: activePacket.hotspot_temp_c,
-      label: activePacket.hotspot_label,
-    };
-    this.thermalRenderer?.update(
-      activePacket.thermal_matrix,
-      activePacket.thermal_min_c,
-      activePacket.thermal_max_c,
-      hotspotInfo
-    );
-
-    // 5. Update Virtual Haul Lane AR Projection
-    this.arLaneRenderer?.update(
-      activePacket.berm_proximity,
-      activePacket.fog_density,
-      activePacket.visibility_m,
-      activePacket.collision_state,
-      activePacket.radar
-    );
-
-    // 6. Update Central Dispatch Map & Fleet Digital Twin (receives full fleet data)
-    this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density);
-
-    // 7. Update Digital Instrument Cluster & Telemetry Gauges
-    this.updateInstrumentCluster(activePacket);
-
-    // 8. Throttle Dispatch Overview Cards & Table to 2 Hz (prevents browser DOM lag)
+    // 5. Throttled DOM Text & Gauges Update (100ms)
     const now = Date.now();
-    if (!this.lastDispatchDomUpdate || now - this.lastDispatchDomUpdate > 500) {
-      this.lastDispatchDomUpdate = now;
+    if (now - this.lastDomUpdate > 100) {
+      this.lastDomUpdate = now;
+      this.updateInstrumentCluster(activePacket);
+    }
+
+    // 6. Throttled Fleet Table & Dispatch Cards Update (500ms)
+    if (now - this.lastDispatchTableUpdate > 500) {
+      this.lastDispatchTableUpdate = now;
       this.updateDispatchCards(packet);
     }
   }
@@ -289,70 +307,56 @@ class HEMMSafetyApp {
     const banner = document.getElementById("collision-alert-banner");
     const stateText = document.getElementById("collision-state-title");
     const subText = document.getElementById("collision-state-subtitle");
-    const distText = document.getElementById("stat-obstacle-distance");
-    const relSpeedText = document.getElementById("stat-rel-speed");
-    const ttcText = document.getElementById("stat-ttc");
-    const safeBrakeText = document.getElementById("stat-safe-braking");
 
     if (!banner) return;
-
-    banner.classList.remove("state-clear", "state-advisory", "state-critical");
 
     const state = packet.collision_state;
     const targetDetected = packet.radar?.target_detected;
     const dist = packet.radar?.distance_m;
     const relSpeed = packet.radar?.relative_speed_kmh;
 
-    if (state === "CRITICAL") {
-      banner.classList.add("state-critical");
-      if (stateText) stateText.innerHTML = `<span class="animate-flash-fast glow-red">🚨 CRITICAL BRAKE NOW — IMMEDIATE OBSTACLE</span>`;
-      if (subText) subText.innerText = "EMERGENCY RETARDER BRAKING ENGAGED | COLLISION IMMINENT";
-    } else if (state === "ADVISORY") {
-      banner.classList.add("state-advisory");
-      if (stateText) stateText.innerHTML = `<span class="glow-amber">⚠️ PROXIMITY ADVISORY — OBSTACLE DETECTED</span>`;
-      if (subText) subText.innerText = "MAINTAIN BRAKING DISTANCE | REDUCE SPEED BELOW 15 KM/H";
-    } else {
-      banner.classList.add("state-clear");
-      if (stateText) stateText.innerHTML = `<span class="glow-green">🛡️ HAUL ROAD CLEAR — ZERO-VISIBILITY ASSIST ACTIVE</span>`;
-      if (subText) subText.innerText = "LIDAR / 77 GHz mmWAVE & THERMAL GUIDANCE ENGAGED";
+    const currentClass = banner.getAttribute("data-state");
+    if (currentClass !== state) {
+      banner.setAttribute("data-state", state);
+      banner.classList.remove("state-clear", "state-advisory", "state-critical");
+
+      if (state === "CRITICAL") {
+        banner.classList.add("state-critical");
+        if (stateText) stateText.innerHTML = `<span class="animate-flash-fast glow-red">🚨 CRITICAL BRAKE NOW — IMMEDIATE OBSTACLE</span>`;
+        if (subText) subText.innerText = "EMERGENCY RETARDER BRAKING ENGAGED | COLLISION IMMINENT";
+      } else if (state === "ADVISORY") {
+        banner.classList.add("state-advisory");
+        if (stateText) stateText.innerHTML = `<span class="glow-amber">⚠️ PROXIMITY ADVISORY — OBSTACLE DETECTED</span>`;
+        if (subText) subText.innerText = "MAINTAIN BRAKING DISTANCE | REDUCE SPEED BELOW 15 KM/H";
+      } else {
+        banner.classList.add("state-clear");
+        if (stateText) stateText.innerHTML = `<span class="glow-green">🛡️ HAUL ROAD CLEAR — ZERO-VISIBILITY ASSIST ACTIVE</span>`;
+        if (subText) subText.innerText = "LIDAR / 77 GHz mmWAVE & THERMAL GUIDANCE ENGAGED";
+      }
     }
 
-    if (distText) distText.innerText = targetDetected && dist < 900 ? `${dist.toFixed(1)} m` : "-- m";
-    if (relSpeedText) relSpeedText.innerText = targetDetected ? `${relSpeed > 0 ? "+" : ""}${relSpeed.toFixed(1)} km/h` : "-- km/h";
-    if (ttcText) ttcText.innerText = packet.time_to_collision_s ? `${packet.time_to_collision_s.toFixed(1)} s` : "-- s";
-    
-    // Calculate required safe stopping distance: d = v^2 / (2 * a) + reaction
+    fastSetText("stat-obstacle-distance", targetDetected && dist < 900 ? `${dist.toFixed(1)} m` : "-- m");
+    fastSetText("stat-rel-speed", targetDetected ? `${relSpeed > 0 ? "+" : ""}${relSpeed.toFixed(1)} km/h` : "-- km/h");
+    fastSetText("stat-ttc", packet.time_to_collision_s ? `${packet.time_to_collision_s.toFixed(1)} s` : "-- s");
+
     const vMps = (packet.speed_kmh * 1000) / 3600;
     const brakeDist = (vMps * vMps) / (2 * 2.8) + (vMps * 0.75);
-    if (safeBrakeText) safeBrakeText.innerText = `${brakeDist.toFixed(1)} m`;
+    fastSetText("stat-safe-braking", `${brakeDist.toFixed(1)} m`);
   }
 
   updateInstrumentCluster(packet) {
-    const elSpeed = document.getElementById("hud-speed");
-    const elHeading = document.getElementById("hud-heading");
-    const elGear = document.getElementById("hud-gear");
-    const elRpm = document.getElementById("hud-rpm");
-    const elBrake = document.getElementById("hud-brake-psi");
-    const elPitch = document.getElementById("hud-pitch");
-    const elRoll = document.getElementById("hud-roll");
-    const elPayload = document.getElementById("hud-payload");
-    const elZone = document.getElementById("hud-zone");
-    const elGps = document.getElementById("hud-gps");
-    const elVisibility = document.getElementById("hud-visibility");
-    const elModeTag = document.getElementById("hud-mode-tag");
-
-    if (elSpeed) elSpeed.innerText = packet.speed_kmh.toFixed(1);
-    if (elHeading) elHeading.innerText = `${Math.round(packet.heading_deg)}°`;
-    if (elGear) elGear.innerText = packet.gear || "D3";
-    if (elRpm) elRpm.innerText = packet.rpm || "1650";
-    if (elBrake) elBrake.innerText = `${packet.brake_pressure_psi.toFixed(0)} PSI`;
-    if (elPitch) elPitch.innerText = `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}°`;
-    if (elRoll) elRoll.innerText = `${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}°`;
-    if (elPayload) elPayload.innerText = `${packet.payload_tons.toFixed(1)} T`;
-    if (elZone) elZone.innerText = packet.zone_name || "Deposit 14 Haul Ramp";
-    if (elGps) elGps.innerText = `${packet.gps.lat.toFixed(5)} N, ${packet.gps.lng.toFixed(5)} E (${packet.gps.altitude_m}m)`;
-    if (elVisibility) elVisibility.innerText = `${packet.visibility_m.toFixed(1)}m`;
-    if (elModeTag) elModeTag.innerText = packet.mode || "SIMULATION";
+    fastSetText("hud-speed", packet.speed_kmh.toFixed(1));
+    fastSetText("hud-heading", `${Math.round(packet.heading_deg)}°`);
+    fastSetText("hud-gear", packet.gear || "D3");
+    fastSetText("hud-rpm", String(packet.rpm || "1650"));
+    fastSetText("hud-brake-psi", `${packet.brake_pressure_psi.toFixed(0)} PSI`);
+    fastSetText("hud-pitch", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}°`);
+    fastSetText("hud-roll", `${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}°`);
+    fastSetText("hud-payload", `${packet.payload_tons.toFixed(1)} T`);
+    fastSetText("hud-zone", packet.zone_name || "Deposit 14 Haul Ramp");
+    fastSetText("hud-gps", `${packet.gps.lat.toFixed(5)} N, ${packet.gps.lng.toFixed(5)} E (${packet.gps.altitude_m}m)`);
+    fastSetText("hud-visibility", `${packet.visibility_m.toFixed(1)}m`);
+    fastSetText("hud-mode-tag", packet.mode || "SIMULATION");
   }
 
   updateDispatchCards(packet) {
@@ -360,22 +364,17 @@ class HEMMSafetyApp {
     const activeCount = fleetList.length;
     const criticalCount = fleetList.filter(f => f.collision_state === "CRITICAL").length;
 
-    const elActiveFleet = document.getElementById("disp-active-fleet");
-    const elSafetyIndex = document.getElementById("disp-safety-index");
-    const elIncidentCount = document.getElementById("disp-incident-count");
-    const elAvgCycle = document.getElementById("disp-avg-cycle");
-
-    if (elActiveFleet) elActiveFleet.innerText = `${activeCount} Units`;
+    fastSetText("disp-active-fleet", `${activeCount} Units`);
     
-    // Road Safety Index Calculation
     const safetyIndex = Math.max(45, 100 - (criticalCount * 25) - (packet.active_hazard !== "NONE" ? 15 : 0));
+    const elSafetyIndex = document.getElementById("disp-safety-index");
     if (elSafetyIndex) {
       elSafetyIndex.innerText = `${safetyIndex}%`;
       elSafetyIndex.className = safetyIndex > 80 ? "text-emerald-400 font-bold" : (safetyIndex > 60 ? "text-amber-400 font-bold" : "text-rose-500 font-bold");
     }
 
-    if (elIncidentCount) elIncidentCount.innerText = packet.incident_count || "0";
-    if (elAvgCycle) elAvgCycle.innerText = "28.4 min";
+    fastSetText("disp-incident-count", String(packet.incident_count || "0"));
+    fastSetText("disp-avg-cycle", "28.4 min");
 
     // Update Fleet Table
     const tbody = document.getElementById("fleet-table-body");
@@ -402,65 +401,17 @@ class HEMMSafetyApp {
     }
   }
 
-  async fetchIncidents() {
+  async injectHazard(hazardType, distanceMeters) {
     try {
-      const res = await fetch("/api/incidents");
-      if (res.ok) {
-        const incidents = await res.json();
-        this.renderIncidentTable(incidents);
-      }
-    } catch (e) {}
-    setTimeout(() => this.fetchIncidents(), 5000);
-  }
-
-  renderIncidentTable(incidents) {
-    const container = document.getElementById("incident-log-body");
-    if (!container) return;
-
-    if (!incidents || incidents.length === 0) {
-      container.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-slate-500 text-xs font-mono">NO ZERO-VISIBILITY INCIDENTS LOGGED TODAY</td></tr>`;
-      return;
-    }
-
-    container.innerHTML = incidents.slice(0, 8).map(inc => {
-      const badge = inc.collision_state === "CRITICAL"
-        ? `<span class="text-rose-400 font-bold">CRITICAL</span>`
-        : `<span class="text-amber-400 font-bold">ADVISORY</span>`;
-
-      return `
-        <tr class="border-b border-slate-800 hover:bg-slate-800/30 text-xs font-mono">
-          <td class="py-2 px-2 text-slate-400">${inc.timestamp_str}</td>
-          <td class="py-2 px-2 text-cyan-400 font-bold">${inc.vehicle_id}</td>
-          <td class="py-2 px-2 text-slate-300">${inc.hazard_type}</td>
-          <td class="py-2 px-2">${badge}</td>
-          <td class="py-2 px-2 text-slate-200">${inc.distance_m} m</td>
-          <td class="py-2 px-2 text-slate-400">${inc.action_taken}</td>
-        </tr>
-      `;
-    }).join("");
-  }
-
-  async injectHazard(hazardType, distanceM) {
-    try {
-      const res = await fetch("/api/simulation/inject_hazard", {
+      const res = await fetch("/api/hazard/inject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hazard_type: hazardType, distance_m: distanceM }),
+        body: JSON.stringify({ hazard_type: hazardType, distance_m: distanceMeters, duration_s: 8.0 }),
       });
-      const data = await res.json();
-      console.log("Hazard injected:", data);
-      
-      // Update UI active buttons
-      document.querySelectorAll(".btn-hazard-trigger").forEach(b => {
-        if (b.getAttribute("data-hazard") === hazardType) {
-          b.classList.add("border-rose-500", "bg-rose-950/40");
-        } else {
-          b.classList.remove("border-rose-500", "bg-rose-950/40");
-        }
-      });
-    } catch (e) {
-      console.error("Failed to inject hazard:", e);
-    }
+      if (res.ok) {
+        this.fetchIncidents();
+      }
+    } catch (e) {}
   }
 
   async toggleMode() {
@@ -472,6 +423,42 @@ class HEMMSafetyApp {
         btn.innerText = `MODE: ${data.mode}`;
       }
     } catch (e) {}
+  }
+
+  async fetchIncidents() {
+    try {
+      const res = await fetch("/api/incidents");
+      if (res.ok) {
+        const incidents = await res.json();
+        this.renderIncidentTable(incidents);
+      }
+    } catch (e) {}
+  }
+
+  renderIncidentTable(incidents) {
+    const container = document.getElementById("incident-log-body");
+    if (!container) return;
+
+    if (!incidents || incidents.length === 0) {
+      container.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-slate-500 text-xs font-mono">NO ZERO-VISIBILITY INCIDENTS LOGGED TODAY</td></tr>`;
+      return;
+    }
+
+    container.innerHTML = incidents.slice(0, 10).map(inc => {
+      let badgeClass = "bg-rose-950 text-rose-300 border-rose-500";
+      if (inc.collision_state === "ADVISORY") badgeClass = "bg-amber-950 text-amber-300 border-amber-500";
+
+      return `
+        <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs font-mono">
+          <td class="py-2 px-3 text-slate-400">${inc.timestamp_str}</td>
+          <td class="py-2 px-3 font-bold text-cyan-400">${inc.vehicle_id}</td>
+          <td class="py-2 px-3 text-slate-200">${inc.hazard_type.replace('_', ' ')}</td>
+          <td class="py-2 px-3 text-rose-400 font-bold">${inc.distance_m} m</td>
+          <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] border ${badgeClass}">${inc.collision_state}</span></td>
+          <td class="py-2 px-3 text-slate-300">${inc.action_taken}</td>
+        </tr>
+      `;
+    }).join("");
   }
 
   async clearIncidents() {
@@ -488,9 +475,7 @@ class HEMMSafetyApp {
         const notes = await res.json();
         this.renderNotesList(notes);
       }
-    } catch (e) {
-      console.warn("Failed to fetch notes:", e);
-    }
+    } catch (e) {}
   }
 
   renderNotesList(notes) {
@@ -546,9 +531,7 @@ class HEMMSafetyApp {
         document.getElementById("note-input-content").value = "";
         this.fetchNotes();
       }
-    } catch (e) {
-      console.error("Failed to post note:", e);
-    }
+    } catch (e) {}
   }
 
   exportNotesCSV() {
@@ -598,4 +581,3 @@ class HEMMSafetyApp {
 window.addEventListener("DOMContentLoaded", () => {
   window.app = new HEMMSafetyApp();
 });
-
