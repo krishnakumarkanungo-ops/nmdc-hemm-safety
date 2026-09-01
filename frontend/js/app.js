@@ -285,21 +285,20 @@ class HEMMSafetyApp {
     this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
   }
 
-  // 60 FPS Continuous Avionics Animation Loop
+  // Event-Driven Low-Latency Render Loop (Ultra-Low CPU Usage)
   startRenderLoop() {
     const frame = () => {
       if (this.hasNewPacket && this.latestPacket) {
         this.consumePacket(this.latestPacket);
         this.hasNewPacket = false;
-      }
 
-      // Continuous 60 FPS buttery smooth canvas drawing
-      if (this.currentView === "HUD" || this.currentView === "DUAL") {
-        this.radarRenderer?.render();
-        this.thermalRenderer?.render();
-        this.arLaneRenderer?.render();
+        // Render Canvases on new packet arrival (10 Hz stream)
+        if (this.currentView === "HUD" || this.currentView === "DUAL") {
+          this.radarRenderer?.render();
+          this.thermalRenderer?.render();
+          this.arLaneRenderer?.render();
+        }
       }
-
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
