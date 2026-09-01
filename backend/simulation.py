@@ -190,11 +190,12 @@ class SimulationEngine:
         d_alt = (gps2.altitude_m - gps1.altitude_m)
         return math.sqrt(d_lat * d_lat + d_lng * d_lng + d_alt * d_alt)
 
-    def set_hazard(self, hazard_type: str, distance_m: float = 7.0):
-        """Inject a hazard dynamically or clear active hazards."""
+    def set_hazard(self, hazard_type: str, distance_m: float = 7.0, duration_s: float = 8.0):
+        """Inject a hazard dynamically or clear active hazards with auto-timeout."""
         self.active_hazard = hazard_type
         self.hazard_start_time = time.time()
         self.hazard_distance = distance_m
+        self.hazard_duration = duration_s
 
     def toggle_mode(self, mode: Optional[str] = None) -> str:
         """Toggle or set backend operating mode (SIMULATION vs HARDWARE)."""
@@ -215,7 +216,13 @@ class SimulationEngine:
 
     def update_physics(self, dt: float = 0.05):
         """Update simulation physics at high frequency (10-20 Hz) for all vehicles."""
+        now = time.time()
         loop_length_meters = 4200.0  # ~4.2 km pit loop
+
+        # Auto-clear injected hazard after duration (e.g. 8 seconds)
+        if self.active_hazard != HazardTypeEnum.NONE.value:
+            if now - self.hazard_start_time > getattr(self, "hazard_duration", 8.0):
+                self.active_hazard = HazardTypeEnum.NONE.value
 
         for v_id, v_data in self.fleet_vehicles.items():
             if v_data["speed"] > 0:
