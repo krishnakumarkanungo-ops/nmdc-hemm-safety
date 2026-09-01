@@ -1,6 +1,6 @@
 /* 
  * HEMM Operator & Fleet Safety System - NMDC Bailadila Sector
- * High-Contrast Dark Industrial Rugged Tablet Theme
+ * High-Contrast Dark Industrial Rugged Tablet Theme (GPU Smooth Accelerated)
  */
 
 @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700;800&display=swap');
@@ -33,10 +33,18 @@ body {
   background-color: var(--bg-primary);
   color: #e2e8f0;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .font-mono {
   font-family: 'JetBrains Mono', monospace;
+}
+
+/* GPU Hardware Acceleration */
+canvas {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 /* Industrial Grid Background */
@@ -54,6 +62,8 @@ body {
   border-radius: 8px;
   position: relative;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  transform: translateZ(0);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tactical-panel::before {
@@ -98,115 +108,40 @@ body {
 @keyframes strobe-alert {
   0% {
     background-color: rgba(239, 68, 68, 0.15);
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
   }
   100% {
     background-color: rgba(239, 68, 68, 0.35);
-    box-shadow: 0 0 60px rgba(239, 68, 68, 0.9);
   }
 }
 
-/* Flashing Text Alert */
-.animate-flash-fast {
-  animation: flash-text 0.5s infinite alternate;
-}
-
-@keyframes flash-text {
-  0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0.25; transform: scale(1.02); }
-}
-
-/* Tactical Glow Accents */
+/* Tactical Glow Effects */
 .glow-green {
-  text-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+  text-shadow: 0 0 10px var(--safety-green-glow);
+  color: var(--safety-green);
 }
 
 .glow-amber {
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+  text-shadow: 0 0 12px var(--warning-amber-glow);
+  color: var(--warning-amber);
 }
 
 .glow-red {
-  text-shadow: 0 0 14px rgba(239, 68, 68, 0.95);
+  text-shadow: 0 0 15px var(--critical-red-glow);
+  color: var(--critical-red);
 }
 
 .glow-cyan {
-  text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+  text-shadow: 0 0 10px var(--radar-cyan-glow);
+  color: var(--radar-cyan);
 }
 
-/* Radar Scope Glow */
-.radar-glow {
-  filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4));
-}
-
-/* Rugged Touch Controls */
-.tactical-btn {
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid #334155;
-  color: #f1f5f9;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  transition: all 0.15s ease-in-out;
-  cursor: pointer;
-}
-
-.tactical-btn:hover {
-  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-  border-color: #64748b;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
-}
-
-.tactical-btn:active {
-  transform: translateY(1px);
-}
-
-/* Custom Scrollbar for Rugged Displays */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #090d14;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
-
-/* Leaflet Map Styling Override for Dark Pit Theme */
-.leaflet-container {
-  background-color: #080c14 !important;
-}
-
-.leaflet-control-zoom a {
-  background-color: #0f172a !important;
-  color: #38bdf8 !important;
-  border-color: #1e293b !important;
-}
-
-.leaflet-popup-content-wrapper {
-  background: #0f172a !important;
-  color: #f1f5f9 !important;
-  border: 1px solid #334155 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important;
-}
-
-.leaflet-popup-tip {
-  background: #0f172a !important;
-}
-
-/* Status Indicator LED */
+/* LED Status Indicators */
 .led-indicator {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   display: inline-block;
+  transition: background-color 0.2s ease;
 }
 
 .led-green {
@@ -222,4 +157,52 @@ body {
 .led-red {
   background-color: #ef4444;
   box-shadow: 0 0 10px #ef4444;
+}
+
+/* Animations */
+.animate-flash-fast {
+  animation: flash-fast 0.5s infinite alternate;
+}
+
+@keyframes flash-fast {
+  from { opacity: 1; }
+  to { opacity: 0.3; }
+}
+
+.tactical-btn {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  transition: all 0.15s ease-out;
+}
+
+.tactical-btn:hover {
+  background-color: #334155;
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090e17;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Leaflet Map Marker Transitions */
+.leaflet-marker-icon {
+  transition: transform 0.2s ease-out !important;
+  will-change: transform;
 }
