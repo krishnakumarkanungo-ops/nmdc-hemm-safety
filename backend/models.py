@@ -90,22 +90,24 @@ class TelemetryPacket(BaseModel):
     time_to_collision_s: Optional[float] = None
     mode: str = "SIMULATION"  # SIMULATION or HARDWARE
     zone_name: str = "Bench 14 - Ramp 3 South"
+    active_hazard: str = "NONE"
+    incident_count: int = 0
 
 
 class FleetVehicleSummary(BaseModel):
     vehicle_id: str
     vehicle_name: str
-    vehicle_type: str  # DUMP_TRUCK, SHOVEL, DOZER, WATER_TANKER, LIGHT_VEHICLE
+    vehicle_type: str = "DUMP_TRUCK"  # DUMP_TRUCK, SHOVEL, DOZER, WATER_TANKER, LIGHT_VEHICLE
     gps: GPSData
-    speed_kmh: float
-    heading_deg: float
-    collision_state: str
-    payload_tons: float
-    status: str  # HAULING, LOADING, DUMPING, IDLE, EMERGENCY_STOP
-    current_zone: str
-    operator_name: str
-    radar_target_detected: bool
-    nearest_target_m: float
+    speed_kmh: float = 0.0
+    heading_deg: float = 180.0
+    collision_state: str = "CLEAR"
+    payload_tons: float = 0.0
+    status: str = "HAULING"  # HAULING, LOADING, DUMPING, IDLE, EMERGENCY_STOP
+    current_zone: str = "Deposit 14 Haul Road"
+    operator_name: str = "NMDC Operator"
+    radar_target_detected: bool = False
+    nearest_target_m: float = 999.0
 
 
 class IncidentRecord(BaseModel):
@@ -125,6 +127,7 @@ class IncidentRecord(BaseModel):
 class HazardInjectionRequest(BaseModel):
     hazard_type: str
     distance_m: Optional[float] = 7.0
+    duration_s: Optional[float] = 0.0
     custom_message: Optional[str] = None
 
 
