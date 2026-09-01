@@ -18,19 +18,20 @@ class DispatchMapRenderer {
 
   initMap() {
     const container = document.getElementById(this.containerId);
-    if (!container || typeof L === 'undefined') return;
+    if (!container || typeof L === 'undefined' || container._leaflet_id) return;
 
-    this.map = L.map(this.containerId, {
-      center: this.pitCenter,
-      zoom: 15,
-      zoomControl: true,
-      attributionControl: false,
-    });
+    try {
+      this.map = L.map(this.containerId, {
+        center: this.pitCenter,
+        zoom: 15,
+        zoomControl: true,
+        attributionControl: false,
+      });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-    }).addTo(this.map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd',
+      }).addTo(this.map);
 
     const haulRoadCoords = [
       [18.7185, 81.2510],
@@ -51,6 +52,9 @@ class DispatchMapRenderer {
     L.circle([18.7185, 81.2510], { radius: 75, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.2, weight: 1 }).bindPopup("<b>Bench 14 Loading Face</b>").addTo(this.map);
 
     this.fogLayer = L.circle(this.pitCenter, { radius: 800, color: '#94a3b8', fillColor: '#0f172a', fillOpacity: 0.35, weight: 0 }).addTo(this.map);
+    } catch (e) {
+      console.warn("Leaflet map deferred:", e);
+    }
   }
 
   _createVehicleIcon(vehicleId, vehicleType, headingDeg, collisionState, isSelected) {
