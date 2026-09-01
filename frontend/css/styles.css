@@ -40,11 +40,9 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* GPU Hardware Acceleration */
+/* Standard Canvas Display */
 canvas {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  will-change: transform;
+  display: block;
 }
 
 /* Industrial Grid Background */
