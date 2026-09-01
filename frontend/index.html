@@ -580,13 +580,13 @@ requests.post("http://localhost:8000/api/telemetry/ingress", json=payload)
     </div>
   </div>
 
-  <!-- Scripts -->
-  <script src="/static/js/audio_alarm.js"></script>
-  <script src="/static/js/radar_scope.js"></script>
-  <script src="/static/js/thermal_vision.js"></script>
-  <script src="/static/js/ar_lane_hud.js"></script>
-  <script src="/static/js/dispatch_map.js"></script>
-  <script src="/static/js/app.js"></script>
+  <!-- Scripts with Cache-Busting -->
+  <script src="/static/js/audio_alarm.js?v=2.1.0"></script>
+  <script src="/static/js/radar_scope.js?v=2.1.0"></script>
+  <script src="/static/js/thermal_vision.js?v=2.1.0"></script>
+  <script src="/static/js/ar_lane_hud.js?v=2.1.0"></script>
+  <script src="/static/js/dispatch_map.js?v=2.1.0"></script>
+  <script src="/static/js/app.js?v=2.1.0"></script>
   
   <script>
     // Initialize Lucide icons
