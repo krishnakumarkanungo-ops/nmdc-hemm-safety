@@ -100,10 +100,31 @@ class DispatchMapRenderer {
     });
   }
 
-  update(primaryTelemetry, fleetList, fogDensity) {
+  clearMarkers() {
+    Object.values(this.markers).forEach(m => {
+      try { this.map?.removeLayer(m); } catch (e) {}
+    });
+    this.markers = {};
+  }
+
+  update(primaryTelemetry, fleetList, fogDensity, isHardwareMode = false, hasHardwareIngested = false) {
     if (!this.map) return;
 
+    if (isHardwareMode && !hasHardwareIngested) {
+      this.clearMarkers();
+      return;
+    }
+
     const allVehicles = (fleetList && fleetList.length > 0) ? fleetList : (primaryTelemetry ? [primaryTelemetry] : []);
+    const activeIds = new Set(allVehicles.map(v => v.vehicle_id));
+
+    // Remove obsolete markers
+    Object.keys(this.markers).forEach(id => {
+      if (!activeIds.has(id)) {
+        try { this.map.removeLayer(this.markers[id]); } catch (e) {}
+        delete this.markers[id];
+      }
+    });
     
     allVehicles.forEach(v => {
       if (!v || !v.vehicle_id) return;
