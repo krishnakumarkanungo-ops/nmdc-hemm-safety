@@ -85,7 +85,7 @@
         </div>
       </div>
 
-      <!-- View Switcher & Audio Controls -->
+      <!-- View Switcher & Audio Controls & Mode Selector -->
       <div class="flex items-center gap-2">
         <div class="flex bg-slate-950 p-1 rounded border border-slate-800">
           <button id="btn-view-hud" class="btn-view-tab px-3 py-1 text-xs font-semibold rounded bg-cyan-600 text-white border border-cyan-400 transition-all">
@@ -100,18 +100,26 @@
         </div>
 
         <!-- Audio Alert Mute Toggle -->
-        <button id="btn-audio-mute" class="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono transition-all">
-          <span class="text-emerald-400">🔊 CAB AUDIO ACTIVE</span>
+        <button id="btn-audio-mute" class="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded text-xs font-mono transition-all">
+          <span class="text-emerald-400">🔊 AUDIO</span>
         </button>
 
-        <!-- Notes & Handover Button -->
-        <button id="btn-open-notes" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-mono text-amber-300 flex items-center gap-1.5 transition-all" title="Operator Shift Notes & Observations">
+        <!-- Notes Button -->
+        <button id="btn-open-notes" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-mono text-amber-300 flex items-center gap-1.5 transition-all" title="Operator Shift Notes">
           <span>📝 NOTES</span>
         </button>
 
-        <!-- Hardware Docs Button -->
-        <button id="btn-hw-guide" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-mono text-cyan-300 transition-all" title="Hardware Ingress API">
-          ⚡ INGRESS
+        <!-- Hardware Sensor Pairing Hub Button -->
+        <button id="btn-open-hw-pairing" class="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500 rounded text-xs font-mono text-cyan-300 font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-cyan-500/30" title="Pair Physical Hardware Sensors (USB Serial / WiFi / CAN Bus)">
+          <span>🔌 PAIR HARDWARE</span>
+        </button>
+
+        <!-- Mode Toggle: Operator Training Demo vs Exit Demo -->
+        <button id="btn-enter-training" class="px-3 py-1.5 bg-amber-950/90 hover:bg-amber-900 border border-amber-500 rounded text-xs font-mono text-amber-300 font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-amber-500/30 hover:scale-105" title="Open Virtual Operator Training & Hazard Simulation Sandbox">
+          <span>🚀 OPERATOR TRAINING & DEMO</span>
+        </button>
+        <button id="btn-exit-training" class="hidden px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500 rounded text-xs font-mono text-rose-300 font-bold flex items-center gap-1.5 transition-all animate-pulse" title="Exit Training Simulation and return to Live Hardware Mode">
+          <span>🚪 EXIT DEMO (LIVE HARDWARE)</span>
         </button>
       </div>
 
@@ -120,6 +128,17 @@
 
   <!-- ================= MAIN VIEWPORT CONTAINER ================= -->
   <main class="max-w-[1920px] mx-auto w-full p-3 flex-1 flex flex-col gap-3">
+
+    <!-- ================= OPERATOR TRAINING SIMULATOR BANNER (Visible only in Demo Mode) ================= -->
+    <div id="training-mode-banner" class="hidden tactical-panel p-2.5 bg-amber-950/40 border border-amber-500/60 rounded flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-bold font-mono text-[10px] uppercase">TRAINING SIMULATOR ACTIVE</span>
+        <span class="text-xs font-mono text-amber-200">Virtual Mine Hazards & Physics Simulator are active for operator instruction and evaluation.</span>
+      </div>
+      <button id="btn-banner-exit-demo" class="px-3 py-1 rounded bg-rose-900/90 hover:bg-rose-800 border border-rose-400 text-xs font-mono text-rose-100 font-bold transition-all">
+        🚪 Exit Demo (Return to Hardware)
+      </button>
+    </div>
 
     <!-- ================= 1. IN-CAB OPERATOR HUD VIEW ================= -->
     <div id="operator-hud-view" class="flex flex-col gap-3 w-full transition-all">
@@ -411,14 +430,44 @@
 
   </main>
 
-  <!-- ================= BOTTOM SCENARIO & HAZARD INJECTION CONTROL DECK ================= -->
+  <!-- ================= BOTTOM SENSOR INGRESS / DEMO HARNESS DECKS ================= -->
   <footer class="bg-slate-900 border-t border-slate-800 p-3 sticky bottom-0 z-40">
-    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2">
-      
+    
+    <!-- 1. LIVE HARDWARE SENSOR STATUS DECK (Default View) -->
+    <div id="deck-hardware-status" class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <span id="hw-status-dot" class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+          <span id="hw-status-label" class="px-2.5 py-1 rounded bg-cyan-950 border border-cyan-500/80 text-cyan-300 text-xs font-mono font-bold">
+            READY TO PAIR / SENSOR INGRESS STANDBY
+          </span>
+        </div>
+        <span class="text-xs font-mono text-slate-400 hidden md:inline">Connect physical 77 GHz radar, thermal camera or GPS via USB Serial / Network Ingress.</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="hidden lg:flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-950 px-3 py-1 rounded border border-slate-800">
+          <span>PORT: <b id="hw-port-badge" class="text-slate-200">AUTO-DETECT</b></span>
+          <span class="text-slate-600">|</span>
+          <span>BAUD: <b class="text-cyan-300">115200</b></span>
+          <span class="text-slate-600">|</span>
+          <span>INGEST: <b class="text-emerald-400">/api/telemetry/ingress</b></span>
+        </div>
+        <button id="btn-quick-pair" class="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-cyan-500/30">
+          🔌 Pair Hardware
+        </button>
+        <button id="btn-send-test-packet" class="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-mono text-emerald-300 font-semibold transition-all" title="Simulate 1 Physical Telemetry Frame">
+          ⚡ Pulse Test Frame
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. OPERATOR TRAINING & DEMO HAZARD TEST HARNESS (Shown only in Demo Mode) -->
+    <div id="deck-demo-harness" class="hidden max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2">
       <!-- Deck Title -->
       <div class="flex items-center gap-2">
         <span class="px-2 py-0.5 rounded bg-rose-950 border border-rose-500 text-rose-300 text-[10px] font-mono font-bold">
-          LIVE DEMO & TEST HARNESS
+          TRAINING SIMULATION HARNESS
         </span>
         <span class="text-xs font-mono text-slate-400 hidden sm:inline">INJECT MINE HAZARDS:</span>
       </div>
@@ -456,12 +505,9 @@
         <button id="btn-manual-brake" class="px-2 py-1.5 rounded bg-rose-950 hover:bg-rose-900 border border-rose-500 text-xs font-mono text-rose-300 font-bold" title="Apply Service Brake">
           🛑 BRAKE
         </button>
-        <button id="btn-toggle-mode" class="px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-xs font-mono text-cyan-400 font-semibold hover:border-cyan-500">
-          MODE: SIMULATION
-        </button>
       </div>
-
     </div>
+
   </footer>
 
   <!-- ================= SHIFT NOTES & OPERATOR LOG MODAL ================= -->
@@ -532,61 +578,107 @@
     </div>
   </div>
 
-  <!-- ================= HARDWARE INGRESS GUIDE MODAL ================= -->
-  <div id="hw-modal" style="display: none;" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="tactical-panel max-w-2xl w-full p-5 bg-slate-900 border-slate-700">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-        <div class="flex items-center gap-2">
-          <span class="text-cyan-400 text-lg">⚡</span>
-          <h3 class="text-sm font-bold font-mono text-white">HARDWARE SENSOR INGRESS & SERIAL BRIDGE</h3>
+  <!-- ================= COMPREHENSIVE HARDWARE SENSOR PAIRING & SERIAL INGRESS HUB ================= -->
+  <div id="hw-pairing-modal" style="display: none;" class="hidden fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="tactical-panel max-w-3xl w-full p-5 bg-slate-900 border-slate-700 max-h-[92vh] flex flex-col justify-between overflow-y-auto">
+      <div>
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded bg-cyan-950 border border-cyan-500/60 flex items-center justify-center text-cyan-400 font-bold">
+              🔌
+            </div>
+            <div>
+              <h3 class="text-sm font-bold font-mono text-white">HARDWARE SENSOR PAIRING & REAL-TIME INGRESS HUB</h3>
+              <p class="text-[10px] font-mono text-slate-400">Connect 77 GHz mmWave Radar, Thermal IR Matrix, CAN-Bus & GPS Units</p>
+            </div>
+          </div>
+          <button id="btn-close-hw-pairing" class="text-slate-400 hover:text-white font-mono text-lg">✕</button>
         </div>
-        <button id="btn-close-hw-modal" class="text-slate-400 hover:text-white font-mono text-lg">✕</button>
+
+        <!-- Connection Modes Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          
+          <!-- Method 1: Web Serial USB / RS485 Direct Connect -->
+          <div class="bg-slate-950 p-3.5 rounded border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold font-mono text-cyan-400">METHOD 1: USB / SERIAL PORT DIRECT</span>
+                <span id="serial-status-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">DISCONNECTED</span>
+              </div>
+              <p class="text-[11px] font-mono text-slate-300 mb-3">
+                Direct browser connection to <b>ESP32, STM32, Arduino</b> or <b>USB-to-RS485/CAN-Bus adapter</b> via Web Serial API.
+              </p>
+              <div class="flex items-center gap-2 mb-3">
+                <label class="text-[10px] font-mono text-slate-400">BAUD RATE:</label>
+                <select id="serial-baud-select" class="bg-slate-900 text-cyan-300 text-xs font-mono rounded px-2 py-1 border border-slate-700 outline-none">
+                  <option value="115200" selected>115200 bps (Standard)</option>
+                  <option value="921600">921600 bps (High-Speed Radar)</option>
+                  <option value="57600">57600 bps</option>
+                  <option value="9600">9600 bps</option>
+                </select>
+              </div>
+            </div>
+            <button id="btn-serial-connect" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-mono font-bold rounded shadow transition-all flex items-center justify-center gap-1.5">
+              <span>🔌 Connect USB Serial Device</span>
+            </button>
+          </div>
+
+          <!-- Method 2: WiFi / Ethernet REST Ingress API -->
+          <div class="bg-slate-950 p-3.5 rounded border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold font-mono text-emerald-400">METHOD 2: NETWORK REST / WIFI INGRESS</span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">ONLINE (20 Hz)</span>
+              </div>
+              <p class="text-[11px] font-mono text-slate-300 mb-2">
+                Microcontrollers or Raspberry Pi can POST JSON telemetry packets directly via HTTP/HTTPS.
+              </p>
+              <div class="bg-slate-900 p-2 rounded border border-slate-800 mb-2">
+                <div class="text-[9px] font-mono text-slate-400 mb-0.5">INGRESS ENDPOINT URL:</div>
+                <code id="ingress-url-display" class="text-emerald-400 text-[10px] break-all">/api/telemetry/ingress</code>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button id="btn-copy-ingress-curl" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono rounded border border-slate-700">
+                📋 Copy Python / cURL
+              </button>
+              <button id="btn-test-ingress-packet" class="flex-1 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-mono font-bold rounded">
+                ⚡ Inject Test Pulse
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Live Sensor Ingress Packet Stream Terminal -->
+        <div class="bg-slate-950 p-3 rounded border border-slate-800">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold font-mono text-slate-300">📟 LIVE HARDWARE SENSOR PACKET STREAM MONITOR</span>
+            <button id="btn-clear-terminal" class="text-[10px] font-mono text-slate-500 hover:text-slate-300">CLEAR LOG</button>
+          </div>
+          <div id="hw-terminal-log" class="bg-slate-900 text-emerald-400 font-mono text-[10px] p-2.5 rounded h-[120px] overflow-y-auto space-y-1">
+            <div class="text-slate-500">[STANDBY] Waiting for physical hardware connection or ingress telemetry packet...</div>
+          </div>
+        </div>
+
       </div>
 
-      <div class="space-y-4 text-xs font-mono text-slate-300">
-        <p>
-          You can stream live sensor packets directly from an <b>ESP32 microcontroller</b>, <b>Raspberry Pi</b>, or <b>USB Serial Bridge</b> to this application.
-        </p>
-
-        <div class="bg-slate-950 p-3 rounded border border-slate-800">
-          <div class="text-[11px] font-bold text-cyan-400 mb-1">REST INGRESS ENDPOINT:</div>
-          <code class="text-emerald-400 text-[11px]">POST http://localhost:8000/api/telemetry/ingress</code>
-        </div>
-
-        <div class="bg-slate-950 p-3 rounded border border-slate-800">
-          <div class="text-[11px] font-bold text-cyan-400 mb-1">EXAMPLE PYTHON HARDWARE BRIDGE / SENSOR FEEDER:</div>
-          <pre class="text-slate-300 text-[10px] overflow-x-auto p-2 bg-slate-900 rounded">
-import requests, time
-
-payload = {
-  "vehicle_id": "HEMM-DUMP-07",
-  "speed_kmh": 14.5,
-  "heading_deg": 182.0,
-  "gps": {"lat": 18.7155, "lng": 81.2538, "altitude_m": 1220.0},
-  "radar": {"target_detected": True, "distance_m": 4.8, "relative_speed_kmh": -3.2},
-  "collision_state": "CRITICAL",
-  "berm_left_m": 3.8,
-  "berm_right_m": 4.1
-}
-
-requests.post("http://localhost:8000/api/telemetry/ingress", json=payload)
-          </pre>
-        </div>
-
-        <div class="text-slate-400 text-[11px]">
-          WebSocket Ingress is also available at: <code class="text-cyan-300">ws://localhost:8000/ws/hardware</code>
-        </div>
+      <div class="border-t border-slate-800 pt-3 mt-3 flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <span>Hardware frames automatically override simulation and populate HUD in real-time.</span>
+        <button id="btn-close-hw-pairing-bottom" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-slate-300 text-xs">
+          Close Window
+        </button>
       </div>
     </div>
   </div>
 
   <!-- Scripts with Cache-Busting -->
-  <script src="/static/js/audio_alarm.js?v=2.9.0"></script>
-  <script src="/static/js/radar_scope.js?v=2.9.0"></script>
-  <script src="/static/js/thermal_vision.js?v=2.9.0"></script>
-  <script src="/static/js/ar_lane_hud.js?v=2.9.0"></script>
-  <script src="/static/js/dispatch_map.js?v=2.9.0"></script>
-  <script src="/static/js/app.js?v=2.9.0"></script>
+  <script src="/static/js/audio_alarm.js?v=3.0.0"></script>
+  <script src="/static/js/radar_scope.js?v=3.0.0"></script>
+  <script src="/static/js/thermal_vision.js?v=3.0.0"></script>
+  <script src="/static/js/ar_lane_hud.js?v=3.0.0"></script>
+  <script src="/static/js/dispatch_map.js?v=3.0.0"></script>
+  <script src="/static/js/app.js?v=3.0.0"></script>
   
   <script>
     // Initialize Lucide icons
