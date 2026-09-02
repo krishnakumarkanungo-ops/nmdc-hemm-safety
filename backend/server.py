@@ -199,7 +199,8 @@ async def inject_hazard_legacy(req: HazardInjectionRequest):
     }
 
 @app.post("/api/mode/toggle")
-async def toggle_mode(mode: str = None):
+async def toggle_mode(req: Optional[dict] = None):
+    mode = req.get("mode") if req else None
     new_mode = sim_engine.toggle_mode(mode)
     return {"status": "SUCCESS", "mode": new_mode}
 
