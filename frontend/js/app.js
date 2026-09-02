@@ -408,7 +408,9 @@ class HEMMSafetyApp {
 
     // 3. Dispatch Map update
     if (this.currentView === "DISPATCH" || this.currentView === "DUAL") {
-      this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density);
+      const isHw = (this.appMode === "HARDWARE");
+      const hasHwData = (this.packetsIngestedCount > 0);
+      this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
     }
 
     // 4. Update Collision Alert Banner
@@ -482,13 +484,44 @@ class HEMMSafetyApp {
   }
 
   updateDispatchCards(packet) {
-    const fleetList = packet.fleet_summary || [];
+    const isHardwareMode = (this.appMode === "HARDWARE");
+    const hasIngestedHardware = (this.packetsIngestedCount > 0);
+
+    let fleetList = [];
+    if (!isHardwareMode) {
+      // Operator Training / Demo Mode: Show complete 5-unit NMDC mining fleet
+      fleetList = packet.fleet_summary || [];
+    } else if (hasIngestedHardware) {
+      // In Hardware Mode with connected unit: Show the connected hardware unit
+      fleetList = [{
+        vehicle_id: this.activeVehicleId,
+        vehicle_name: "Physical CAS Unit (Live Ingress)",
+        current_zone: packet.zone_name || "Deposit 14 Haul Ramp",
+        speed_kmh: packet.speed_kmh || 0.0,
+        payload_tons: packet.payload_tons || 95.0,
+        status: "LIVE_STREAM",
+        collision_state: packet.collision_state || "CLEAR"
+      }];
+    }
+
     const activeCount = fleetList.length;
     const criticalCount = fleetList.filter(f => f.collision_state === "CRITICAL").length;
 
-    fastSetText("disp-active-fleet", `${activeCount} Units`);
-    
-    const safetyIndex = Math.max(45, 100 - (criticalCount * 25) - (packet.active_hazard !== "NONE" ? 15 : 0));
+    const elActiveFleet = document.getElementById("disp-active-fleet");
+    if (elActiveFleet) {
+      if (!isHardwareMode) {
+        elActiveFleet.innerText = `${activeCount} Units (Demo Fleet)`;
+        elActiveFleet.className = "text-2xl font-bold font-mono text-amber-400";
+      } else if (hasIngestedHardware) {
+        elActiveFleet.innerText = `1 Unit (Paired Hardware)`;
+        elActiveFleet.className = "text-2xl font-bold font-mono text-emerald-400";
+      } else {
+        elActiveFleet.innerText = `0 Units (Ready to Pair)`;
+        elActiveFleet.className = "text-2xl font-bold font-mono text-cyan-400";
+      }
+    }
+
+    const safetyIndex = (isHardwareMode && !hasIngestedHardware) ? 100 : Math.max(45, 100 - (criticalCount * 25) - (packet.active_hazard !== "NONE" ? 15 : 0));
     const elSafetyIndex = document.getElementById("disp-safety-index");
     if (elSafetyIndex) {
       elSafetyIndex.innerText = `${safetyIndex}%`;
@@ -496,30 +529,52 @@ class HEMMSafetyApp {
     }
 
     fastSetText("disp-incident-count", String(packet.incident_count || "0"));
-    fastSetText("disp-avg-cycle", "28.4 min");
+    fastSetText("disp-avg-cycle", (isHardwareMode && !hasIngestedHardware) ? "-- min" : "28.4 min");
 
     // Update Fleet Table
     const tbody = document.getElementById("fleet-table-body");
-    if (tbody && fleetList.length > 0) {
-      tbody.innerHTML = fleetList.map(v => {
-        let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-emerald-950 border border-emerald-500/50 text-emerald-300">${v.status}</span>`;
-        if (v.collision_state === "CRITICAL") {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-rose-950 border border-rose-500 text-rose-300 animate-pulse">EMERGENCY BRAKE</span>`;
-        } else if (v.collision_state === "ADVISORY") {
-          statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 border border-amber-500 text-amber-300">ADVISORY</span>`;
-        }
+    if (tbody) {
+      if (fleetList.length > 0) {
+        tbody.innerHTML = fleetList.map(v => {
+          let statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-emerald-950 border border-emerald-500/50 text-emerald-300">${v.status}</span>`;
+          if (v.collision_state === "CRITICAL") {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-rose-950 border border-rose-500 text-rose-300 animate-pulse">EMERGENCY BRAKE</span>`;
+          } else if (v.collision_state === "ADVISORY") {
+            statusBadge = `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 border border-amber-500 text-amber-300">ADVISORY</span>`;
+          }
 
-        return `
-          <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs font-mono">
-            <td class="py-2 px-3 font-bold text-cyan-400">${v.vehicle_id}</td>
-            <td class="py-2 px-3 text-slate-300">${v.vehicle_name}</td>
-            <td class="py-2 px-3 text-slate-400">${v.current_zone}</td>
-            <td class="py-2 px-3 text-slate-200">${v.speed_kmh} km/h</td>
-            <td class="py-2 px-3 text-slate-300">${v.payload_tons} T</td>
-            <td class="py-2 px-3">${statusBadge}</td>
+          return `
+            <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs font-mono">
+              <td class="py-2 px-3 font-bold text-cyan-400">${v.vehicle_id}</td>
+              <td class="py-2 px-3 text-slate-300">${v.vehicle_name}</td>
+              <td class="py-2 px-3 text-slate-400">${v.current_zone}</td>
+              <td class="py-2 px-3 text-slate-200">${v.speed_kmh} km/h</td>
+              <td class="py-2 px-3 text-slate-300">${v.payload_tons} T</td>
+              <td class="py-2 px-3">${statusBadge}</td>
+            </tr>
+          `;
+        }).join("");
+      } else {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-8">
+              <div class="flex flex-col items-center justify-center gap-2">
+                <span class="text-3xl">🔌</span>
+                <span class="text-xs font-mono font-bold text-cyan-400">READY TO PAIR — NO PHYSICAL FLEET ASSETS CONNECTED</span>
+                <span class="text-[11px] font-mono text-slate-400 max-w-md">Connect real hardware units via Web Serial or REST Ingress API (/api/telemetry/ingress) to stream live telemetry.</span>
+                <div class="flex gap-2 mt-2">
+                  <button onclick="window.app.openHardwareModal()" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-mono font-bold rounded shadow transition-all">
+                    🔌 Open Hardware Pairing Hub
+                  </button>
+                  <button onclick="window.app.setAppMode('DEMO_TRAINING')" class="px-3 py-1.5 bg-amber-950 hover:bg-amber-900 border border-amber-500 text-amber-300 text-xs font-mono font-bold rounded shadow transition-all">
+                    🚀 View Simulated Fleet (Demo)
+                  </button>
+                </div>
+              </div>
+            </td>
           </tr>
         `;
-      }).join("");
+      }
     }
   }
 
