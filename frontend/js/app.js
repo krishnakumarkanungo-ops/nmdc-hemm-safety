@@ -15,9 +15,16 @@ class HEMMSafetyApp {
     this.ws = null;
     this.reconnectTimer = null;
     this.currentView = "HUD"; // "HUD", "DISPATCH", "DUAL"
+    this.appMode = "HARDWARE"; // "HARDWARE" (default, production) or "DEMO_TRAINING" (training sandbox)
     this.latestPacket = null;
     this.hasNewPacket = false;
     this.activeVehicleId = "HEMM-DUMP-07";
+
+    // Web Serial & Hardware Ingress State
+    this.serialPort = null;
+    this.serialReader = null;
+    this.isSerialConnected = false;
+    this.packetsIngestedCount = 0;
 
     // Component Renderers
     this.radarRenderer = null;
@@ -168,7 +175,23 @@ class HEMMSafetyApp {
       });
     });
 
-    // Hazard Injection Triggers
+    // Operator Training & Demo Sandbox Mode Switchers
+    document.getElementById("btn-enter-training")?.addEventListener("click", () => this.setAppMode("DEMO_TRAINING"));
+    document.getElementById("btn-exit-training")?.addEventListener("click", () => this.setAppMode("HARDWARE"));
+    document.getElementById("btn-banner-exit-demo")?.addEventListener("click", () => this.setAppMode("HARDWARE"));
+
+    // Hardware Sensor Pairing Hub Modal Handlers
+    document.getElementById("btn-open-hw-pairing")?.addEventListener("click", () => this.openHardwareModal());
+    document.getElementById("btn-quick-pair")?.addEventListener("click", () => this.openHardwareModal());
+    document.getElementById("btn-close-hw-pairing")?.addEventListener("click", () => this.closeHardwareModal());
+    document.getElementById("btn-close-hw-pairing-bottom")?.addEventListener("click", () => this.closeHardwareModal());
+    document.getElementById("btn-serial-connect")?.addEventListener("click", () => this.toggleWebSerial());
+    document.getElementById("btn-send-test-packet")?.addEventListener("click", () => this.sendTestHardwarePacket());
+    document.getElementById("btn-test-ingress-packet")?.addEventListener("click", () => this.sendTestHardwarePacket());
+    document.getElementById("btn-copy-ingress-curl")?.addEventListener("click", () => this.copyIngressCurl());
+    document.getElementById("btn-clear-terminal")?.addEventListener("click", () => this.clearTerminal());
+
+    // Hazard Injection Triggers (Operator Training Mode)
     document.querySelectorAll(".btn-hazard-trigger").forEach(btn => {
       btn.addEventListener("click", (e) => {
         const hazardType = e.currentTarget.getAttribute("data-hazard");
@@ -181,7 +204,6 @@ class HEMMSafetyApp {
     document.getElementById("btn-toggle-pause")?.addEventListener("click", () => this.togglePause());
     document.getElementById("btn-manual-accel")?.addEventListener("click", () => this.manualControl(5.0, false));
     document.getElementById("btn-manual-brake")?.addEventListener("click", () => this.manualControl(-10.0, true));
-    document.getElementById("btn-toggle-mode")?.addEventListener("click", () => this.toggleMode());
     document.getElementById("btn-export-incidents")?.addEventListener("click", () => this.exportIncidentsCSV());
     document.getElementById("btn-clear-incidents")?.addEventListener("click", () => this.clearIncidents());
 
@@ -219,22 +241,6 @@ class HEMMSafetyApp {
     });
     document.getElementById("btn-submit-note")?.addEventListener("click", () => this.submitNote());
     document.getElementById("btn-export-notes-csv")?.addEventListener("click", () => this.exportNotesCSV());
-
-    // Hardware Docs Modal
-    document.getElementById("btn-hw-guide")?.addEventListener("click", () => {
-      const modal = document.getElementById("hw-modal");
-      if (modal) {
-        modal.style.display = "flex";
-        modal.classList.remove("hidden");
-      }
-    });
-    document.getElementById("btn-close-hw-modal")?.addEventListener("click", () => {
-      const modal = document.getElementById("hw-modal");
-      if (modal) {
-        modal.style.display = "none";
-        modal.classList.add("hidden");
-      }
-    });
   }
 
   switchView(viewName) {
@@ -556,15 +562,256 @@ class HEMMSafetyApp {
     } catch (e) {}
   }
 
-  async toggleMode() {
+  setAppMode(mode) {
+    this.appMode = mode; // "HARDWARE" or "DEMO_TRAINING"
+
+    const bannerTraining = document.getElementById("training-mode-banner");
+    const btnEnter = document.getElementById("btn-enter-training");
+    const btnExit = document.getElementById("btn-exit-training");
+    const deckHw = document.getElementById("deck-hardware-status");
+    const deckDemo = document.getElementById("deck-demo-harness");
+
+    if (mode === "DEMO_TRAINING") {
+      bannerTraining?.classList.remove("hidden");
+      btnEnter?.classList.add("hidden");
+      btnExit?.classList.remove("hidden");
+      deckHw?.classList.add("hidden");
+      deckDemo?.classList.remove("hidden");
+
+      fetch("/api/mode/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "SIMULATION" })
+      }).catch(() => {});
+    } else {
+      // HARDWARE MODE (Default Production View)
+      bannerTraining?.classList.add("hidden");
+      btnEnter?.classList.remove("hidden");
+      btnExit?.classList.add("hidden");
+      deckHw?.classList.remove("hidden");
+      deckDemo?.classList.add("hidden");
+
+      // Reset any active simulated hazard
+      this.injectHazard("NONE", 999.0);
+
+      fetch("/api/mode/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "HARDWARE" })
+      }).catch(() => {});
+    }
+  }
+
+  openHardwareModal() {
+    const modal = document.getElementById("hw-pairing-modal");
+    if (modal) {
+      modal.style.display = "flex";
+      modal.classList.remove("hidden");
+    }
+    const fullIngressUrl = `${window.location.origin}/api/telemetry/ingress`;
+    const urlDisplay = document.getElementById("ingress-url-display");
+    if (urlDisplay) urlDisplay.innerText = fullIngressUrl;
+  }
+
+  closeHardwareModal() {
+    const modal = document.getElementById("hw-pairing-modal");
+    if (modal) {
+      modal.style.display = "none";
+      modal.classList.add("hidden");
+    }
+  }
+
+  logHardwareTerminal(message, isData = false) {
+    const logBox = document.getElementById("hw-terminal-log");
+    if (!logBox) return;
+    const timeStr = new Date().toLocaleTimeString();
+    const entry = document.createElement("div");
+    entry.className = isData ? "text-cyan-300 font-bold" : "text-emerald-400";
+    entry.textContent = `[${timeStr}] ${message}`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  clearTerminal() {
+    const logBox = document.getElementById("hw-terminal-log");
+    if (logBox) logBox.innerHTML = `<div class="text-slate-500">[STANDBY] Terminal cleared. Ready for sensor packets...</div>`;
+  }
+
+  copyIngressCurl() {
+    const fullIngressUrl = `${window.location.origin}/api/telemetry/ingress`;
+    const script = `import requests, time
+
+payload = {
+  "vehicle_id": "${this.activeVehicleId}",
+  "speed_kmh": 16.5,
+  "heading_deg": 182.0,
+  "gps": {"lat": 18.7145, "lng": 81.2525, "altitude_m": 1220.0},
+  "radar": {
+    "target_detected": True,
+    "distance_m": 6.8,
+    "relative_speed_kmh": -16.5,
+    "targets": [{
+      "target_id": "RAD-HAZARD-01",
+      "distance_m": 6.8,
+      "relative_speed_kmh": -16.5,
+      "azimuth_deg": 0.0,
+      "target_type": "PERSON"
+    }]
+  },
+  "collision_state": "CRITICAL",
+  "berm_left_m": 4.1,
+  "berm_right_m": 4.0
+}
+
+response = requests.post("${fullIngressUrl}", json=payload)
+print("Ingress status:", response.status_code, response.json())`;
+
+    navigator.clipboard.writeText(script).then(() => {
+      alert("✅ Python & cURL Ingress snippet copied to clipboard!");
+    }).catch(() => {
+      prompt("Copy Python hardware ingress script:", script);
+    });
+  }
+
+  async sendTestHardwarePacket() {
+    const payload = {
+      vehicle_id: this.activeVehicleId,
+      speed_kmh: 15.2,
+      heading_deg: 180.0,
+      gps: { lat: 18.7148, lng: 81.2530, altitude_m: 1220.0 },
+      radar: {
+        target_detected: true,
+        distance_m: 7.2,
+        relative_speed_kmh: -15.2,
+        targets: [{
+          target_id: "RAD-TEST-01",
+          distance_m: 7.2,
+          relative_speed_kmh: -15.2,
+          azimuth_deg: 0.0,
+          target_type: "PERSON",
+          ttc_seconds: 1.7
+        }]
+      },
+      collision_state: "CRITICAL",
+      berm_left_m: 3.9,
+      berm_right_m: 4.0
+    };
+
     try {
-      const res = await fetch("/api/mode/toggle", { method: "POST" });
-      const data = await res.json();
-      const btn = document.getElementById("btn-toggle-mode");
-      if (btn) {
-        btn.innerText = `MODE: ${data.mode}`;
+      const res = await fetch("/api/telemetry/ingress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        this.packetsIngestedCount++;
+        this.logHardwareTerminal(`INGRESS POST [200 OK] -> Frame #${this.packetsIngestedCount}: RADAR 7.2m | CRITICAL`, true);
+        
+        const hwLabel = document.getElementById("hw-status-label");
+        const hwPort = document.getElementById("hw-port-badge");
+        if (hwLabel) {
+          hwLabel.innerText = "HARDWARE STREAMING ACTIVE (FRAME INGESTED)";
+          hwLabel.className = "px-2.5 py-1 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 text-xs font-mono font-bold";
+        }
+        if (hwPort) hwPort.innerText = "REST INGRESS";
+
+        await this.fetchTelemetryHttp();
       }
-    } catch (e) {}
+    } catch (e) {
+      this.logHardwareTerminal(`INGRESS ERROR: ${e.message}`);
+    }
+  }
+
+  async toggleWebSerial() {
+    if (!("serial" in navigator)) {
+      alert("⚠️ Web Serial API is not supported in this browser. Please use Chrome, Edge, or Opera on Desktop, or use Method 2 (Network REST Ingress).");
+      return;
+    }
+
+    const badge = document.getElementById("serial-status-badge");
+    const btn = document.getElementById("btn-serial-connect");
+
+    if (this.isSerialConnected && this.serialPort) {
+      try {
+        if (this.serialReader) {
+          await this.serialReader.cancel();
+        }
+        await this.serialPort.close();
+        this.isSerialConnected = false;
+        if (badge) {
+          badge.innerText = "DISCONNECTED";
+          badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400";
+        }
+        if (btn) btn.innerText = "🔌 Connect USB Serial Device";
+        this.logHardwareTerminal("Serial port disconnected cleanly.");
+      } catch (e) {
+        console.error(e);
+      }
+      return;
+    }
+
+    try {
+      const baudSelect = document.getElementById("serial-baud-select");
+      const baudRate = parseInt(baudSelect?.value || "115200");
+      this.serialPort = await navigator.serial.requestPort();
+      await this.serialPort.open({ baudRate });
+      this.isSerialConnected = true;
+
+      if (badge) {
+        badge.innerText = `CONNECTED (${baudRate} bps)`;
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+      }
+      if (btn) btn.innerText = "🔌 Disconnect Serial Port";
+
+      const hwPort = document.getElementById("hw-port-badge");
+      if (hwPort) hwPort.innerText = `USB SERIAL (${baudRate})`;
+
+      this.logHardwareTerminal(`Web Serial port opened at ${baudRate} baud. Listening for JSON packets...`);
+      this.readSerialLoop();
+    } catch (e) {
+      this.logHardwareTerminal(`Serial Connection Cancelled: ${e.message}`);
+    }
+  }
+
+  async readSerialLoop() {
+    const textDecoder = new TextDecoderStream();
+    const readableStreamClosed = this.serialPort.readable.pipeTo(textDecoder.writable);
+    this.serialReader = textDecoder.readable.getReader();
+
+    let buffer = "";
+    try {
+      while (true) {
+        const { value, done } = await this.serialReader.read();
+        if (done) break;
+        if (value) {
+          buffer += value;
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+              try {
+                const packet = JSON.parse(trimmed);
+                this.packetsIngestedCount++;
+                this.logHardwareTerminal(`RAW SERIAL JSON: Dist=${packet.radar?.distance_m || '--'}m State=${packet.collision_state || 'OK'}`, true);
+                
+                this.consumePacket(packet);
+                fetch("/api/telemetry/ingress", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(packet)
+                }).catch(() => {});
+              } catch (parseErr) {}
+            }
+          }
+        }
+      }
+    } catch (err) {
+      this.logHardwareTerminal(`Serial Read Error: ${err.message}`);
+    } finally {
+      this.serialReader.releaseLock();
+    }
   }
 
   async fetchIncidents() {
