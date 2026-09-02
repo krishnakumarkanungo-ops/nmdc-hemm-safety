@@ -19,6 +19,7 @@ class HEMMSafetyApp {
     this.latestPacket = null;
     this.hasNewPacket = false;
     this.activeVehicleId = "HEMM-DUMP-07";
+    this.pairedVehicleName = null; // Custom hardware machine name added by user
 
     // Web Serial & Hardware Ingress State
     this.serialPort = null;
@@ -191,6 +192,22 @@ class HEMMSafetyApp {
     document.getElementById("btn-test-ingress-packet")?.addEventListener("click", () => this.sendTestHardwarePacket());
     document.getElementById("btn-copy-ingress-curl")?.addEventListener("click", () => this.copyIngressCurl());
     document.getElementById("btn-clear-terminal")?.addEventListener("click", () => this.clearTerminal());
+
+    // Custom Physical Machine Name Setup
+    document.getElementById("btn-save-machine-name")?.addEventListener("click", () => {
+      const input = document.getElementById("input-custom-machine-name");
+      const name = input?.value.trim();
+      if (!name) {
+        alert("Please enter a Machine Name or ID (e.g. HEMM-MINE-TRUCK-01)");
+        return;
+      }
+      this.pairedVehicleName = name;
+      this.activeVehicleId = name;
+      this.updateCabUnitOptions();
+      this.logHardwareTerminal(`Physical machine name set to '${name}'. Ready to receive sensor frames.`);
+      alert(`✅ Machine '${name}' configured & paired! In-Cab HUD is now linked.`);
+      this.closeHardwareModal();
+    });
 
     // Hazard Injection Triggers (Operator Training Mode)
     document.querySelectorAll(".btn-hazard-trigger").forEach(btn => {
@@ -433,16 +450,15 @@ class HEMMSafetyApp {
     if (!selectVehicle) return;
 
     const isHardwareMode = (this.appMode === "HARDWARE");
-    const hasIngestedHardware = (this.packetsIngestedCount > 0);
 
     if (isHardwareMode) {
-      if (hasIngestedHardware) {
+      if (this.pairedVehicleName) {
         selectVehicle.innerHTML = `
-          <option value="${this.activeVehicleId}" selected>🟢 PAIRED UNIT: ${this.activeVehicleId} (Live Stream)</option>
+          <option value="${this.pairedVehicleName}" selected>🟢 PAIRED MACHINE: ${this.pairedVehicleName}</option>
         `;
       } else {
         selectVehicle.innerHTML = `
-          <option value="HEMM-DUMP-07" selected>🔌 READY TO PAIR (Sensor Standby)</option>
+          <option value="UNPAIRED" selected>🔌 WAITING TO PAIR... (Add Hardware Device)</option>
         `;
       }
     } else {
@@ -555,11 +571,12 @@ class HEMMSafetyApp {
     if (!isHardwareMode) {
       // Operator Training / Demo Mode: Show complete 5-unit NMDC mining fleet
       fleetList = packet.fleet_summary || [];
-    } else if (hasIngestedHardware) {
-      // In Hardware Mode with connected unit: Show the connected hardware unit
+    } else if (hasIngestedHardware || this.pairedVehicleName) {
+      // In Hardware Mode with paired unit: Show the custom physical machine
+      const vName = this.pairedVehicleName || this.activeVehicleId;
       fleetList = [{
-        vehicle_id: this.activeVehicleId,
-        vehicle_name: "Physical CAS Unit (Live Ingress)",
+        vehicle_id: vName,
+        vehicle_name: `${vName} (Live Hardware Unit)`,
         current_zone: packet.zone_name || "Deposit 14 Haul Ramp",
         speed_kmh: packet.speed_kmh || 0.0,
         payload_tons: packet.payload_tons || 95.0,
@@ -576,11 +593,11 @@ class HEMMSafetyApp {
       if (!isHardwareMode) {
         elActiveFleet.innerText = `${activeCount} Units (Demo Fleet)`;
         elActiveFleet.className = "text-2xl font-bold font-mono text-amber-400";
-      } else if (hasIngestedHardware) {
-        elActiveFleet.innerText = `1 Unit (Paired Hardware)`;
+      } else if (hasIngestedHardware || this.pairedVehicleName) {
+        elActiveFleet.innerText = `1 Unit (Paired: ${this.pairedVehicleName || this.activeVehicleId})`;
         elActiveFleet.className = "text-2xl font-bold font-mono text-emerald-400";
       } else {
-        elActiveFleet.innerText = `0 Units (Ready to Pair)`;
+        elActiveFleet.innerText = `0 Units (Waiting to Pair)`;
         elActiveFleet.className = "text-2xl font-bold font-mono text-cyan-400";
       }
     }
