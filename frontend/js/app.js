@@ -50,7 +50,6 @@ class HEMMSafetyApp {
 
     const selectVehicle = document.getElementById("select-active-vehicle");
     if (selectVehicle) {
-      selectVehicle.value = this.activeVehicleId;
       selectVehicle.addEventListener("change", (e) => {
         this.activeVehicleId = e.target.value;
         const newUrl = new URL(window.location.href);
@@ -61,6 +60,8 @@ class HEMMSafetyApp {
         }
       });
     }
+
+    this.updateCabUnitOptions();
 
     // Initialize Renderers Safely
     try { this.radarRenderer = new RadarScopeRenderer("radar-canvas"); } catch (e) { console.error("Radar init error:", e); }
@@ -427,12 +428,57 @@ class HEMMSafetyApp {
     this.updateDispatchCards(packet);
   }
 
+  updateCabUnitOptions() {
+    const selectVehicle = document.getElementById("select-active-vehicle");
+    if (!selectVehicle) return;
+
+    const isHardwareMode = (this.appMode === "HARDWARE");
+    const hasIngestedHardware = (this.packetsIngestedCount > 0);
+
+    if (isHardwareMode) {
+      if (hasIngestedHardware) {
+        selectVehicle.innerHTML = `
+          <option value="${this.activeVehicleId}" selected>🟢 PAIRED UNIT: ${this.activeVehicleId} (Live Stream)</option>
+        `;
+      } else {
+        selectVehicle.innerHTML = `
+          <option value="HEMM-DUMP-07" selected>🔌 READY TO PAIR (Sensor Standby)</option>
+        `;
+      }
+    } else {
+      // Training / Demo Simulation Mode: Show full 5-vehicle fleet
+      selectVehicle.innerHTML = `
+        <option value="HEMM-DUMP-07" ${this.activeVehicleId === "HEMM-DUMP-07" ? "selected" : ""}>🚛 Truck #1: HEMM-DUMP-07 (CAT 777D)</option>
+        <option value="HEMM-DUMP-02" ${this.activeVehicleId === "HEMM-DUMP-02" ? "selected" : ""}>🚛 Truck #2: HEMM-DUMP-02 (Komatsu HD785)</option>
+        <option value="MINE-LV-03" ${this.activeVehicleId === "MINE-LV-03" ? "selected" : ""}>🚙 Patrol #3: MINE-LV-03 (Bolero Escort)</option>
+        <option value="HEMM-SHOV-04" ${this.activeVehicleId === "HEMM-SHOV-04" ? "selected" : ""}>⛏️ Shovel #4: HEMM-SHOV-04 (P&H 1900AL)</option>
+        <option value="HEMM-DOZ-01" ${this.activeVehicleId === "HEMM-DOZ-01" ? "selected" : ""}>🚜 Dozer #1: HEMM-DOZ-01 (CAT D11T)</option>
+      `;
+    }
+  }
+
   updateCollisionBanner(packet) {
     const banner = document.getElementById("collision-alert-banner");
     const stateText = document.getElementById("collision-state-title");
     const subText = document.getElementById("collision-state-subtitle");
 
     if (!banner) return;
+
+    const isHardwareStandby = (this.appMode === "HARDWARE" && this.packetsIngestedCount === 0);
+
+    if (isHardwareStandby) {
+      banner.setAttribute("data-state", "STANDBY");
+      banner.classList.remove("state-advisory", "state-critical");
+      banner.classList.add("state-clear");
+      if (stateText) stateText.innerHTML = `<span class="glow-cyan">🔌 READY TO PAIR — SENSOR INGRESS STANDBY</span>`;
+      if (subText) subText.innerText = "AWAITING TELEMETRY VIA WEB SERIAL OR /api/telemetry/ingress";
+      
+      fastSetText("stat-obstacle-distance", "-- m");
+      fastSetText("stat-rel-speed", "-- km/h");
+      fastSetText("stat-ttc", "-- s");
+      fastSetText("stat-safe-braking", "READY");
+      return;
+    }
 
     const state = packet.collision_state;
     const targetDetected = packet.radar?.target_detected;
@@ -469,6 +515,24 @@ class HEMMSafetyApp {
   }
 
   updateInstrumentCluster(packet) {
+    const isHardwareStandby = (this.appMode === "HARDWARE" && this.packetsIngestedCount === 0);
+
+    if (isHardwareStandby) {
+      fastSetText("hud-speed", "0.0");
+      fastSetText("hud-heading", "180°");
+      fastSetText("hud-gear", "P");
+      fastSetText("hud-rpm", "STANDBY");
+      fastSetText("hud-brake-psi", "0 PSI");
+      fastSetText("hud-pitch", "0.0°");
+      fastSetText("hud-roll", "0.0°");
+      fastSetText("hud-payload", "0.0 T");
+      fastSetText("hud-zone", "Deposit 14 (Pairing Standby)");
+      fastSetText("hud-gps", "18.7145 N, 81.2525 E (1220m)");
+      fastSetText("hud-visibility", "STANDBY");
+      fastSetText("hud-mode-tag", "HARDWARE_STANDBY");
+      return;
+    }
+
     fastSetText("hud-speed", packet.speed_kmh.toFixed(1));
     fastSetText("hud-heading", `${Math.round(packet.heading_deg)}°`);
     fastSetText("hud-gear", packet.gear || "D3");
@@ -655,6 +719,8 @@ class HEMMSafetyApp {
         body: JSON.stringify({ mode: "HARDWARE" })
       }).catch(() => {});
     }
+
+    this.updateCabUnitOptions();
   }
 
   openHardwareModal() {
@@ -761,6 +827,7 @@ print("Ingress status:", response.status_code, response.json())`;
       if (res.ok) {
         this.packetsIngestedCount++;
         this.logHardwareTerminal(`INGRESS POST [200 OK] -> Frame #${this.packetsIngestedCount}: RADAR 7.2m | CRITICAL`, true);
+        this.updateCabUnitOptions();
         
         const hwLabel = document.getElementById("hw-status-label");
         const hwPort = document.getElementById("hw-port-badge");
