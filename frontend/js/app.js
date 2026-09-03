@@ -27,6 +27,10 @@ class HEMMSafetyApp {
     this.isSerialConnected = false;
     this.packetsIngestedCount = 0;
 
+    // Shift Notes Unseen Tracking & Toast State
+    this.seenNoteIds = new Set(["NOTE-001", "NOTE-002"]);
+    this.toastDismissTimer = null;
+
     // Component Renderers
     this.radarRenderer = null;
     this.thermalRenderer = null;
@@ -93,9 +97,12 @@ class HEMMSafetyApp {
     // Start Decoupled Animation Loop
     this.startRenderLoop();
 
-    // Background Polling (Clean 10-second interval)
+    // Background Polling (Incidents & Unseen Notes / Advisories)
     this.fetchIncidents();
     setInterval(() => this.fetchIncidents(), 10000);
+
+    this.fetchNotesBackground();
+    setInterval(() => this.fetchNotesBackground(), 4000);
   }
 
   async fetchTelemetryHttp() {
@@ -259,6 +266,18 @@ class HEMMSafetyApp {
     });
     document.getElementById("btn-submit-note")?.addEventListener("click", () => this.submitNote());
     document.getElementById("btn-export-notes-csv")?.addEventListener("click", () => this.exportNotesCSV());
+
+    // Unseen Note Toast Notification Handlers
+    document.getElementById("btn-dismiss-toast")?.addEventListener("click", () => this.dismissNoteToast());
+    document.getElementById("btn-toast-view")?.addEventListener("click", () => {
+      this.dismissNoteToast();
+      const modal = document.getElementById("notes-modal");
+      if (modal) {
+        modal.style.display = "flex";
+        modal.classList.remove("hidden");
+      }
+      this.fetchNotes();
+    });
   }
 
   switchView(viewName) {
@@ -997,11 +1016,75 @@ print("Ingress status:", response.status_code, response.json())`;
     } catch (e) {}
   }
 
+  async fetchNotesBackground() {
+    try {
+      const res = await fetch("/api/notes");
+      if (res.ok) {
+        const notes = await res.json();
+        const unreadNotes = notes.filter(n => !this.seenNoteIds.has(n.id));
+        const badge = document.getElementById("notes-unread-badge");
+
+        if (unreadNotes.length > 0) {
+          if (badge) {
+            badge.innerText = String(unreadNotes.length);
+            badge.classList.remove("hidden");
+          }
+
+          // Show Toast popup for the latest unseen note if modal is closed
+          const modal = document.getElementById("notes-modal");
+          const isModalOpen = (modal && modal.style.display === "flex");
+          if (!isModalOpen && !this.toastDismissTimer) {
+            const latest = unreadNotes[0];
+            this.showNoteToast(latest);
+          }
+        } else {
+          if (badge) badge.classList.add("hidden");
+        }
+      }
+    } catch (e) {}
+  }
+
+  showNoteToast(note) {
+    const toast = document.getElementById("note-toast-notification");
+    const authorEl = document.getElementById("note-toast-author");
+    const contentEl = document.getElementById("note-toast-content");
+
+    if (!toast || !note) return;
+
+    if (authorEl) authorEl.innerText = `${note.author} (${note.vehicle_id})`;
+    if (contentEl) contentEl.innerText = note.content;
+
+    toast.classList.remove("hidden");
+    toast.classList.add("animate-pulse");
+
+    if (this.toastDismissTimer) clearTimeout(this.toastDismissTimer);
+    this.toastDismissTimer = setTimeout(() => {
+      this.dismissNoteToast();
+    }, 8000);
+  }
+
+  dismissNoteToast() {
+    const toast = document.getElementById("note-toast-notification");
+    if (toast) {
+      toast.classList.add("hidden");
+      toast.classList.remove("animate-pulse");
+    }
+    if (this.toastDismissTimer) {
+      clearTimeout(this.toastDismissTimer);
+      this.toastDismissTimer = null;
+    }
+  }
+
   async fetchNotes() {
     try {
       const res = await fetch("/api/notes");
       if (res.ok) {
         const notes = await res.json();
+        // Mark all notes as seen
+        notes.forEach(n => this.seenNoteIds.add(n.id));
+        const badge = document.getElementById("notes-unread-badge");
+        if (badge) badge.classList.add("hidden");
+        this.dismissNoteToast();
         this.renderNotesList(notes);
       }
     } catch (e) {}
