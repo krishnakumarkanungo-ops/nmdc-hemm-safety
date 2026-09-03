@@ -40,10 +40,10 @@
   <link rel="stylesheet" href="/static/css/styles.css" />
 </head>
 
-<body class="bg-tactical-bg text-slate-100 h-screen w-screen overflow-hidden industrial-grid flex flex-col md:flex-row">
+<body class="bg-tactical-bg text-slate-100 min-h-screen industrial-grid flex flex-col lg:flex-row">
 
   <!-- ================= SLEEK TACTICAL NAVIGATION SIDEBAR ================= -->
-  <aside id="main-sidebar" class="w-full md:w-72 bg-slate-950/95 border-b md:border-b-0 md:border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-30 h-full overflow-y-auto">
+  <aside id="main-sidebar" class="w-full lg:w-72 bg-slate-950/95 border-b lg:border-b-0 lg:border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-30 lg:min-h-screen lg:sticky lg:top-0">
     
     <div>
       <!-- Top Brand & Mine Location -->
@@ -155,10 +155,10 @@
   </aside>
 
   <!-- ================= RIGHT CONTENT AREA & FOOTER WRAPPER ================= -->
-  <div class="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+  <div class="flex-1 flex flex-col min-h-screen min-w-0 justify-between">
 
     <!-- ================= MAIN SCROLLABLE VIEWPORT CONTAINER ================= -->
-    <main class="flex-1 p-3 overflow-y-auto flex flex-col gap-3 min-w-0">
+    <main class="flex-1 p-3 flex flex-col gap-3 min-w-0">
 
     <!-- ================= OPERATOR TRAINING SIMULATOR BANNER (Visible only in Demo Mode) ================= -->
     <div id="training-mode-banner" class="hidden tactical-panel p-2.5 bg-amber-950/40 border border-amber-500/60 rounded flex flex-wrap items-center justify-between gap-2">
@@ -718,12 +718,12 @@
   </div>
 
   <!-- Scripts with Cache-Busting -->
-  <script src="/static/js/audio_alarm.js?v=3.5.0"></script>
-  <script src="/static/js/radar_scope.js?v=3.5.0"></script>
-  <script src="/static/js/thermal_vision.js?v=3.5.0"></script>
-  <script src="/static/js/ar_lane_hud.js?v=3.5.0"></script>
-  <script src="/static/js/dispatch_map.js?v=3.5.0"></script>
-  <script src="/static/js/app.js?v=3.5.0"></script>
+  <script src="/static/js/audio_alarm.js?v=3.6.0"></script>
+  <script src="/static/js/radar_scope.js?v=3.6.0"></script>
+  <script src="/static/js/thermal_vision.js?v=3.6.0"></script>
+  <script src="/static/js/ar_lane_hud.js?v=3.6.0"></script>
+  <script src="/static/js/dispatch_map.js?v=3.6.0"></script>
+  <script src="/static/js/app.js?v=3.6.0"></script>
   
   <script>
     // Initialize Lucide icons
