@@ -266,15 +266,16 @@ class HEMMSafetyApp {
     const hudContainer = document.getElementById("operator-hud-view");
     const dispatchContainer = document.getElementById("dispatch-twin-view");
 
-    document.querySelectorAll(".btn-view-tab").forEach(b => {
-      b.classList.remove("bg-cyan-600", "text-white", "border-cyan-400");
-      b.classList.add("text-slate-300");
+    // Reset all role nav buttons
+    document.querySelectorAll(".btn-role-nav").forEach(b => {
+      b.classList.remove("bg-cyan-600/20", "text-white", "border-cyan-500/60", "shadow-md", "shadow-cyan-500/10");
+      b.classList.add("border-slate-800/80", "bg-slate-900/40", "text-slate-300");
     });
 
     const activeBtn = document.getElementById(`btn-view-${viewName.toLowerCase()}`);
     if (activeBtn) {
-      activeBtn.classList.remove("text-slate-300");
-      activeBtn.classList.add("bg-cyan-600", "text-white", "border-cyan-400");
+      activeBtn.classList.remove("border-slate-800/80", "bg-slate-900/40", "text-slate-300");
+      activeBtn.classList.add("bg-cyan-600/20", "text-white", "border-cyan-500/60", "shadow-md", "shadow-cyan-500/10");
     }
 
     if (viewName === "HUD") {
