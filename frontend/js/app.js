@@ -21,6 +21,18 @@ class HEMMSafetyApp {
     this.activeVehicleId = "HEMM-DUMP-07";
     this.pairedVehicleName = null; // Custom hardware machine name added by user
 
+    // Auto-Remember Machine Preference State (Persistent Kiosk Memory)
+    const savedRemember = localStorage.getItem("nmdc_remember_vehicle");
+    this.rememberVehicle = (savedRemember === null || savedRemember === "true");
+
+    // Restore saved vehicle if memory is enabled
+    if (this.rememberVehicle) {
+      const savedVehicleId = localStorage.getItem("nmdc_saved_vehicle_id");
+      const savedVehicleName = localStorage.getItem("nmdc_saved_vehicle_name");
+      if (savedVehicleId) this.activeVehicleId = savedVehicleId;
+      if (savedVehicleName) this.pairedVehicleName = savedVehicleName;
+    }
+
     // Web Serial & Hardware Ingress State
     this.serialPort = null;
     this.serialReader = null;
@@ -46,17 +58,31 @@ class HEMMSafetyApp {
   }
 
   init() {
-    // Parse URL parameter ?vehicle=HEMM-DUMP-07
+    // Parse URL parameter ?vehicle=HEMM-DUMP-07 (takes precedence if provided)
     const urlParams = new URLSearchParams(window.location.search);
     const vehicleParam = urlParams.get("vehicle");
     if (vehicleParam) {
       this.activeVehicleId = vehicleParam.toUpperCase();
     }
 
+    // Sync Toggle UI State
+    const toggleRemember = document.getElementById("toggle-remember-vehicle");
+    const toggleSubtext = document.getElementById("toggle-remember-subtext");
+    if (toggleRemember) {
+      toggleRemember.checked = this.rememberVehicle;
+      if (toggleSubtext) {
+        toggleSubtext.innerText = this.rememberVehicle ? "AUTO-LOCK ON RECONNECT" : "DON'T REMEMBER (FRESH START)";
+        toggleSubtext.className = this.rememberVehicle ? "text-[9px] font-mono text-emerald-400 leading-tight" : "text-[9px] font-mono text-slate-400 leading-tight";
+      }
+    }
+
     const selectVehicle = document.getElementById("select-active-vehicle");
     if (selectVehicle) {
       selectVehicle.addEventListener("change", (e) => {
         this.activeVehicleId = e.target.value;
+        if (this.rememberVehicle) {
+          localStorage.setItem("nmdc_saved_vehicle_id", this.activeVehicleId);
+        }
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set("vehicle", this.activeVehicleId);
         window.history.replaceState({}, "", newUrl);
@@ -210,10 +236,37 @@ class HEMMSafetyApp {
       }
       this.pairedVehicleName = name;
       this.activeVehicleId = name;
+      if (this.rememberVehicle) {
+        localStorage.setItem("nmdc_saved_vehicle_id", name);
+        localStorage.setItem("nmdc_saved_vehicle_name", name);
+      }
       this.updateCabUnitOptions();
       this.logHardwareTerminal(`Physical machine name set to '${name}'. Ready to receive sensor frames.`);
       alert(`✅ Machine '${name}' configured & paired! In-Cab HUD is now linked.`);
       this.closeHardwareModal();
+    });
+
+    // Auto-Remember Machine Toggle Switch Listener
+    const toggleRemember = document.getElementById("toggle-remember-vehicle");
+    const toggleSubtext = document.getElementById("toggle-remember-subtext");
+    toggleRemember?.addEventListener("change", (e) => {
+      this.rememberVehicle = e.target.checked;
+      localStorage.setItem("nmdc_remember_vehicle", String(this.rememberVehicle));
+      if (this.rememberVehicle) {
+        if (this.activeVehicleId) localStorage.setItem("nmdc_saved_vehicle_id", this.activeVehicleId);
+        if (this.pairedVehicleName) localStorage.setItem("nmdc_saved_vehicle_name", this.pairedVehicleName);
+        if (toggleSubtext) {
+          toggleSubtext.innerText = "AUTO-LOCK ON RECONNECT";
+          toggleSubtext.className = "text-[9px] font-mono text-emerald-400 leading-tight";
+        }
+      } else {
+        localStorage.removeItem("nmdc_saved_vehicle_id");
+        localStorage.removeItem("nmdc_saved_vehicle_name");
+        if (toggleSubtext) {
+          toggleSubtext.innerText = "DON'T REMEMBER (FRESH START)";
+          toggleSubtext.className = "text-[9px] font-mono text-slate-400 leading-tight";
+        }
+      }
     });
 
     // Hazard Injection Triggers (Operator Training Mode)
@@ -228,7 +281,7 @@ class HEMMSafetyApp {
     // Mode, Pause & Manual Driver Controls
     document.getElementById("btn-toggle-pause")?.addEventListener("click", () => this.togglePause());
     document.getElementById("btn-manual-accel")?.addEventListener("click", () => this.manualControl(5.0, false));
-    document.getElementById("btn-manual-brake")?.addEventListener("click", () => this.manualControl(-10.0, true));
+    document.getElementById("btn-manual-brake")?.addEventListener("click", () => this.manualControl(0.0, true));
     document.getElementById("btn-export-incidents")?.addEventListener("click", () => this.exportIncidentsCSV());
     document.getElementById("btn-clear-incidents")?.addEventListener("click", () => this.clearIncidents());
 
