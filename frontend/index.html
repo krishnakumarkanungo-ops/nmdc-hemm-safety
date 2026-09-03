@@ -152,6 +152,21 @@
           <span>🔊 AUDIO</span>
         </button>
       </div>
+
+      <!-- Auto-Remember Machine Toggle Switch -->
+      <div class="p-2 bg-slate-950/80 rounded border border-slate-800 flex items-center justify-between gap-2 mt-1 shadow-inner">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="text-xs">💾</span>
+          <div class="truncate">
+            <div class="text-[11px] font-bold font-mono text-slate-200 leading-tight">REMEMBER MACHINE</div>
+            <div id="toggle-remember-subtext" class="text-[9px] font-mono text-emerald-400 leading-tight">AUTO-LOCK ON RECONNECT</div>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+          <input id="toggle-remember-vehicle" type="checkbox" checked class="sr-only peer">
+          <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+        </label>
+      </div>
     </div>
   </aside>
 
@@ -741,12 +756,12 @@
   </div>
 
   <!-- Scripts with Cache-Busting -->
-  <script src="/static/js/audio_alarm.js?v=3.7.0"></script>
-  <script src="/static/js/radar_scope.js?v=3.7.0"></script>
-  <script src="/static/js/thermal_vision.js?v=3.7.0"></script>
-  <script src="/static/js/ar_lane_hud.js?v=3.7.0"></script>
-  <script src="/static/js/dispatch_map.js?v=3.7.0"></script>
-  <script src="/static/js/app.js?v=3.7.0"></script>
+  <script src="/static/js/audio_alarm.js?v=3.8.0"></script>
+  <script src="/static/js/radar_scope.js?v=3.8.0"></script>
+  <script src="/static/js/thermal_vision.js?v=3.8.0"></script>
+  <script src="/static/js/ar_lane_hud.js?v=3.8.0"></script>
+  <script src="/static/js/dispatch_map.js?v=3.8.0"></script>
+  <script src="/static/js/app.js?v=3.8.0"></script>
   
   <script>
     // Initialize Lucide icons
