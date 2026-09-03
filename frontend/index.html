@@ -144,8 +144,9 @@
 
       <!-- Secondary Tools: Notes & Audio -->
       <div class="grid grid-cols-2 gap-1.5 pt-1">
-        <button id="btn-open-notes" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-mono text-amber-300 flex items-center justify-center gap-1 transition-all" title="Operator Shift Notes">
+        <button id="btn-open-notes" class="relative px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-mono text-amber-300 flex items-center justify-center gap-1 transition-all" title="Operator Shift Notes">
           <span>📝 NOTES</span>
+          <span id="notes-unread-badge" class="hidden absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-rose-600 border border-rose-400 text-white font-bold text-[9px] rounded-full animate-bounce">1</span>
         </button>
         <button id="btn-audio-mute" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-mono text-emerald-400 flex items-center justify-center gap-1 transition-all" title="Toggle In-Cab Alarm Sounds">
           <span>🔊 AUDIO</span>
@@ -153,6 +154,28 @@
       </div>
     </div>
   </aside>
+
+  <!-- ================= TACTICAL UNSEEN NOTE / ADVISORY NOTIFICATION TOAST ================= -->
+  <div id="note-toast-notification" class="hidden fixed top-4 right-4 z-50 max-w-sm w-full bg-slate-900/95 border-2 border-amber-500 shadow-2xl shadow-amber-500/30 rounded-lg p-3.5 flex flex-col gap-2 transition-all transform duration-300">
+    <div class="flex items-start justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="text-amber-400 text-lg animate-pulse">🔔</span>
+        <div>
+          <span class="text-xs font-bold font-mono text-amber-300 tracking-wider">NEW SHIFT ADVISORY</span>
+          <p id="note-toast-author" class="text-[10px] font-mono text-slate-400">From Safety Officer</p>
+        </div>
+      </div>
+      <button id="btn-dismiss-toast" class="text-slate-400 hover:text-white font-mono text-sm">✕</button>
+    </div>
+    <p id="note-toast-content" class="text-xs font-mono text-slate-200 line-clamp-2 bg-slate-950/80 p-2 rounded border border-slate-800">
+      Hazard reported near Bench 14 Ramp.
+    </p>
+    <div class="flex justify-end gap-2 mt-1">
+      <button id="btn-toast-view" class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold font-mono text-xs rounded transition-all">
+        👀 View Full Note
+      </button>
+    </div>
+  </div>
 
   <!-- ================= RIGHT CONTENT AREA & FOOTER WRAPPER ================= -->
   <div class="flex-1 flex flex-col min-h-screen min-w-0 justify-between">
@@ -718,12 +741,12 @@
   </div>
 
   <!-- Scripts with Cache-Busting -->
-  <script src="/static/js/audio_alarm.js?v=3.6.0"></script>
-  <script src="/static/js/radar_scope.js?v=3.6.0"></script>
-  <script src="/static/js/thermal_vision.js?v=3.6.0"></script>
-  <script src="/static/js/ar_lane_hud.js?v=3.6.0"></script>
-  <script src="/static/js/dispatch_map.js?v=3.6.0"></script>
-  <script src="/static/js/app.js?v=3.6.0"></script>
+  <script src="/static/js/audio_alarm.js?v=3.7.0"></script>
+  <script src="/static/js/radar_scope.js?v=3.7.0"></script>
+  <script src="/static/js/thermal_vision.js?v=3.7.0"></script>
+  <script src="/static/js/ar_lane_hud.js?v=3.7.0"></script>
+  <script src="/static/js/dispatch_map.js?v=3.7.0"></script>
+  <script src="/static/js/app.js?v=3.7.0"></script>
   
   <script>
     // Initialize Lucide icons
