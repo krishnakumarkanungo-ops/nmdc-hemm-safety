@@ -40,10 +40,10 @@
   <link rel="stylesheet" href="/static/css/styles.css" />
 </head>
 
-<body class="bg-tactical-bg text-slate-100 min-h-screen industrial-grid flex flex-col md:flex-row overflow-x-hidden">
+<body class="bg-tactical-bg text-slate-100 h-screen w-screen overflow-hidden industrial-grid flex flex-col md:flex-row">
 
   <!-- ================= SLEEK TACTICAL NAVIGATION SIDEBAR ================= -->
-  <aside id="main-sidebar" class="w-full md:w-72 bg-slate-950/95 border-b md:border-b-0 md:border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-30 transition-all duration-200">
+  <aside id="main-sidebar" class="w-full md:w-72 bg-slate-950/95 border-b md:border-b-0 md:border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-30 h-full overflow-y-auto">
     
     <div>
       <!-- Top Brand & Mine Location -->
@@ -154,8 +154,11 @@
     </div>
   </aside>
 
-  <!-- ================= MAIN APPLICATION CONTENT CONTAINER ================= -->
-  <main class="flex-1 flex flex-col justify-between p-3 gap-3 min-w-0 overflow-y-auto">
+  <!-- ================= RIGHT CONTENT AREA & FOOTER WRAPPER ================= -->
+  <div class="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+
+    <!-- ================= MAIN SCROLLABLE VIEWPORT CONTAINER ================= -->
+    <main class="flex-1 p-3 overflow-y-auto flex flex-col gap-3 min-w-0">
 
     <!-- ================= OPERATOR TRAINING SIMULATOR BANNER (Visible only in Demo Mode) ================= -->
     <div id="training-mode-banner" class="hidden tactical-panel p-2.5 bg-amber-950/40 border border-amber-500/60 rounded flex flex-wrap items-center justify-between gap-2">
@@ -537,6 +540,7 @@
     </div>
 
   </footer>
+  </div>
 
   <!-- ================= SHIFT NOTES & OPERATOR LOG MODAL ================= -->
   <div id="notes-modal" style="display: none;" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -714,12 +718,12 @@
   </div>
 
   <!-- Scripts with Cache-Busting -->
-  <script src="/static/js/audio_alarm.js?v=3.4.0"></script>
-  <script src="/static/js/radar_scope.js?v=3.4.0"></script>
-  <script src="/static/js/thermal_vision.js?v=3.4.0"></script>
-  <script src="/static/js/ar_lane_hud.js?v=3.4.0"></script>
-  <script src="/static/js/dispatch_map.js?v=3.4.0"></script>
-  <script src="/static/js/app.js?v=3.4.0"></script>
+  <script src="/static/js/audio_alarm.js?v=3.5.0"></script>
+  <script src="/static/js/radar_scope.js?v=3.5.0"></script>
+  <script src="/static/js/thermal_vision.js?v=3.5.0"></script>
+  <script src="/static/js/ar_lane_hud.js?v=3.5.0"></script>
+  <script src="/static/js/dispatch_map.js?v=3.5.0"></script>
+  <script src="/static/js/app.js?v=3.5.0"></script>
   
   <script>
     // Initialize Lucide icons
