@@ -65,7 +65,7 @@ class ConnectionManager:
         if not self.active_connections:
             return
         dead_connections = set()
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(data)
             except Exception:
@@ -84,12 +84,15 @@ async def real_time_broadcaster_loop():
             start_t = time.time()
             sim_engine.update_physics(dt=interval)
 
-            all_telemetry = {}
-            for v_id in sim_engine.fleet_vehicles.keys():
-                v_packet = sim_engine.get_telemetry_packet(vehicle_id=v_id)
-                all_telemetry[v_id] = v_packet.model_dump()
+            lead_packet = sim_engine.get_telemetry_packet(vehicle_id="HEMM-DUMP-07", include_thermal=True)
+            all_telemetry = {"HEMM-DUMP-07": lead_packet.model_dump()}
 
-            packet_dict = dict(all_telemetry.get("HEMM-DUMP-07", {}))
+            for v_id in sim_engine.fleet_vehicles.keys():
+                if v_id != "HEMM-DUMP-07":
+                    v_p = sim_engine.get_telemetry_packet(vehicle_id=v_id, include_thermal=False)
+                    all_telemetry[v_id] = v_p.model_dump()
+
+            packet_dict = dict(all_telemetry["HEMM-DUMP-07"])
             packet_dict["all_vehicles_telemetry"] = all_telemetry
             packet_dict["fleet_summary"] = [f.model_dump() for f in sim_engine.get_fleet_summary()]
             packet_dict["incident_count"] = len(sim_engine.incidents)
