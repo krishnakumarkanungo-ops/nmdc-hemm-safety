@@ -118,7 +118,7 @@ class HEMMSafetyApp {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         this.fetchTelemetryHttp();
       }
-    }, 200);
+    }, 1000);
 
     // Start Decoupled Animation Loop
     this.startRenderLoop();
@@ -128,7 +128,7 @@ class HEMMSafetyApp {
     setInterval(() => this.fetchIncidents(), 10000);
 
     this.fetchNotesBackground();
-    setInterval(() => this.fetchNotesBackground(), 4000);
+    setInterval(() => this.fetchNotesBackground(), 12000);
   }
 
   async fetchTelemetryHttp() {
@@ -442,19 +442,27 @@ class HEMMSafetyApp {
     this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
   }
 
-  // Continuous Avionics Animation Loop
+  // Optimized Avionics Animation Loop (GPU Smooth & 0 CPU Lag)
   startRenderLoop() {
-    const frame = () => {
+    let lastRenderTime = 0;
+    const frame = (timestamp) => {
       if (this.hasNewPacket && this.latestPacket) {
         this.consumePacket(this.latestPacket);
         this.hasNewPacket = false;
-      }
 
-      // Continuous Canvas Drawing (Never Blank)
-      if (this.currentView === "HUD" || this.currentView === "DUAL") {
-        this.radarRenderer?.render();
-        this.thermalRenderer?.render();
-        this.arLaneRenderer?.render();
+        if (this.currentView === "HUD" || this.currentView === "DUAL") {
+          this.radarRenderer?.render();
+          this.thermalRenderer?.render();
+          this.arLaneRenderer?.render();
+        }
+      } else if (timestamp - lastRenderTime > 100) {
+        // Idle heartbeat refresh (10 FPS)
+        lastRenderTime = timestamp;
+        if (this.currentView === "HUD" || this.currentView === "DUAL") {
+          this.radarRenderer?.render();
+          this.thermalRenderer?.render();
+          this.arLaneRenderer?.render();
+        }
       }
 
       requestAnimationFrame(frame);
