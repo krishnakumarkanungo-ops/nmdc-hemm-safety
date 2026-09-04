@@ -259,7 +259,7 @@ class SimulationEngine:
         center_t = matrix[12][16]
         return matrix, min_t, max_t, center_t, hotspot_label
 
-    def get_telemetry_packet(self, vehicle_id: str = "HEMM-DUMP-07") -> TelemetryPacket:
+    def get_telemetry_packet(self, vehicle_id: str = "HEMM-DUMP-07", include_thermal: bool = True) -> TelemetryPacket:
         now = time.time()
         v_info = self.fleet_vehicles.get(vehicle_id, self.fleet_vehicles["HEMM-DUMP-07"])
         my_gps = v_info.get("gps", self._interpolate_gps(v_info["progress"])[0])
@@ -369,7 +369,11 @@ class SimulationEngine:
             self.fog_density = 0.65
             self.visibility_m = 8.5
 
-        matrix, min_t, max_t, center_t, label = self.generate_thermal_matrix(hotspot_x, hotspot_y, hotspot_label)
+        if include_thermal:
+            matrix, min_t, max_t, center_t, label = self.generate_thermal_matrix(hotspot_x, hotspot_y, hotspot_label)
+        else:
+            matrix = []
+            min_t, max_t, center_t, label = 22.0, 26.0, 24.0, None
 
         v_info["collision_state"] = collision_state
 
