@@ -1,0 +1,98 @@
+# Implementation Plan: Unified Sensor Suite & 3 Core Operational Views
+
+Integrate the complete physical sensor and hardware module suite from the reference diagram directly into the **3 core operational sections** (**Operator Cabin**, **Central Dispatch**, and **Supervisor Command**), remove the separate "SIH Architecture" tab, eliminate the prototype CAR 1 vs CAR 2 separation, and replace the old thermal camera / radar scope outputs with real sensor perception modules.
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **3 Views Maintained**: Only the original 3 sections will be available in the sidebar and navigation:
+>   1. 🚛 **HEMM OPERATOR CABIN** (In-Cab HUD)
+>   2. 🛰️ **CENTRAL DISPATCH CONTROL** (Mine GIS Digital Twin Map & Fleet Telemetry)
+>   3. 🎛️ **SUPERVISOR COMMAND DESK** (Dual Driver Stream & Fleet Command)
+> - **Removal of 4th Tab**: The separate `SIH26007 ARCHITECTURE` tab and its standalone page will be completely removed.
+> - **Unified Vehicle Model**: The artificial split between "CAR 1" and "CAR 2" is eliminated. Every HEMM machine in the fleet now possesses the complete hardware sensor suite, and inter-vehicle V2V communication coordinates between the active truck and neighboring haulage machines.
+> - **Replaced Sensor Displays**: The old thermal camera canvas and radar scope canvas are removed and replaced by:
+>   1. **Raspberry Pi Camera Module 3 Wide**: Optical AI vision stream with bounding box object detection (HEMM, worker PPE, berm edge, rocks).
+>   2. **VL53L1X Dual Laser Ranging (ToF)**: Real-time left/right distance gauges (cm/m) and safety berm clearance monitoring.
+>   3. **77 GHz mmWave Radar Telemetry**: Obstacle range, Doppler closing speed, and azimuth tracking.
+>   4. **NEO-M8N GPS Module**: GNSS coordinates, heading, satellite lock, and altitude.
+>   5. **MPU6050 6-Axis IMU**: Ramp pitch (slope %), cant roll (°), and inclinometer rollover warning.
+>   6. **Optical Wheel Encoder**: Wheel RPM, vehicle ground speed (km/h), pulse frequency (pulses/s), and trip distance.
+>   7. **BMP280 Sensor**: Pit barometric pressure (hPa), elevation (m AMSL), and temperature (°C).
+>   8. **Raspberry Pi 4B Data Fusion**: Kalman filter latency (ms), CPU temperature, and active cooler RPM.
+>   9. **V2V Communication (Wi-Fi / LoRa)**: Mesh peer link, inter-vehicle distance (m), and signal RSSI (dBm).
+>   10. **ESP32 NodeMCU Motor Control & Actuation**: PWM throttle duty (0-255), Solenoid Brake Relay, Warning Buzzer, Strobe LEDs, and Emergency Stop actuation.
+
+---
+
+## Proposed Changes
+
+### 1. Frontend Layout & Markup ([`frontend/index.html`](file:///C:/Users/Krishna%20Kumar/.gemini/antigravity/scratch/hemm_safety_system/frontend/index.html))
+- Remove the `btn-view-architecture` button from the sidebar navigation.
+- Remove the entire `#architecture-bom-view` container and its Car 1 / Car 2 buttons.
+- In `#operator-hud-view`:
+  - Remove the thermal camera canvas container and the radar scope canvas container.
+  - Insert the **Raspberry Pi Camera Module 3 Wide (AI Vision Stream)** canvas with dynamic bounding boxes, hazard markers, and distance overlays.
+  - Insert the **Physical Perception & Ranging Panel**:
+    - Dual VL53L1X ToF Laser gauges (Left & Right distance in meters & cm, Berm warning).
+    - 77 GHz mmWave Radar vector data (Target distance, Doppler speed, Azimuth).
+    - BMP280 Pit Environmental metrics (Pressure hPa, Altitude, Temperature).
+  - Insert the **Kinematics, Inclinometer & Navigation Panel**:
+    - Optical Wheel Encoder (Live RPM, Ground Speed km/h, Pulses/sec, Trip Odometry).
+    - MPU6050 6-Axis IMU (Animated artificial horizon / tilt inclinometer, Pitch °, Roll °, Grade %).
+    - NEO-M8N GPS GNSS receiver (Lat, Lon, Satellites, Fix quality).
+  - Enhance the **RPi 4B Data Fusion & ESP32 Motor Actuation Strip**:
+    - RPi 4B Kalman fusion latency, CPU Temp, Fan RPM.
+    - V2V Communication mesh metrics with nearest haul truck.
+    - ESP32 Motor PWM bar (0-255), Solenoid Brake indicator, Warning Buzzer/LED status, and Emergency E-Stop test button.
+- In `#dispatch-twin-view` and `#supervisor-desk-view`:
+  - Ensure all fleet entries reflect standard HEMM machine IDs (e.g. `HEMM-DUMP-07`, `HEMM-DUMP-02`, etc.) without "CAR 1" or "CAR 2" labels.
+  - Display the unified sensor status on fleet asset cards and incident reports.
+
+---
+
+### 2. Frontend Client Logic & Visualizers ([`frontend/js/app.js`](file:///C:/Users/Krishna%20Kumar/.gemini/antigravity/scratch/hemm_safety_system/frontend/js/app.js))
+- Remove `btn-view-architecture`, `btn-focus-car1`, `btn-focus-car2`, and `updateArchitectureSchematic`.
+- Replace `ThermalVisionRenderer` and `RadarScopeRenderer` with:
+  - `CameraVisionRenderer`: High-resolution canvas rendering the front camera feed with AI bounding boxes for workers, vehicles, berms, and road hazards.
+  - `LaserToFRenderer`: Dynamic canvas/gauge showing dual laser ranging beams scanning berm boundaries.
+  - `InclinometerGaugeRenderer`: High-precision IMU pitch and roll artificial horizon.
+- Update `updateInstrumentCluster(packet)` to populate all sensor elements:
+  - ToF Left & Right clearance
+  - Wheel Encoder RPM, speed, and pulse rate
+  - MPU6050 IMU pitch, roll, and grade
+  - BMP280 pressure and pit temp
+  - NEO-M8N GPS coordinates and satellite count
+  - RPi 4B fusion latency and CPU metrics
+  - ESP32 PWM duty cycle and brake relay
+  - V2V inter-vehicle proximity and RSSI
+
+---
+
+### 3. Backend Telemetry Engine ([`backend/simulation.py`](file:///C:/Users/Krishna%20Kumar/.gemini/antigravity/scratch/hemm_safety_system/backend/simulation.py))
+- Remove "CAR 1 [Lead Prototype]" and "CAR 2 [Follower Prototype]" naming in `_init_fleet()`. Restore standard naming:
+  - `HEMM-DUMP-07`: `CAT 777D Dump Truck (Unit 07)`
+  - `HEMM-DUMP-02`: `Komatsu HD785 Dump Truck (Unit 02)`
+  - etc.
+- Ensure every vehicle in the fleet simulates the complete sensor suite:
+  - `vl53l1x`, `mpu6050`, `wheel_encoder`, `bmp280`, `gps`, `radar`, `rpi_edge`, `v2v`, and `esp32_control`.
+- The active vehicle's V2V calculates distance and relative speed with respect to the closest peer vehicle in the mine pit haul road.
+
+---
+
+## Verification Plan
+
+### Automated Verification
+- Run `test_server.py` to confirm all telemetry models, WebSocket broadcasts, and hazard state machines pass 100%.
+  ```powershell
+  & "C:\Users\Krishna Kumar\.gemini\antigravity\scratch\.venv\Scripts\python.exe" test_server.py
+  ```
+- Validate that the backend loads without errors and broadcasts the full sensor packet at 15 Hz.
+
+### Live Browser & Universal Link Verification
+- Check HTTP 200 response on the Cloudflare Tunnel URL `https://deal-isolation-clothes-flooring.trycloudflare.com`.
+- Verify in the browser:
+  - Only the 3 core views appear (Operator Cabin, Central Dispatch, Supervisor Desk).
+  - No "SIH Architecture" tab or Car 1 / Car 2 toggle exists.
+  - Operator Cabin displays Camera Module 3 Wide with AI vision, Dual VL53L1X ToF, mmWave Radar, NEO-M8N GPS, MPU6050 IMU, Wheel Encoder, BMP280, RPi 4B Fusion, V2V Link, and ESP32 Motor Actuation.
+  - Test the ESP32 E-Stop button and verify instant visual response.
