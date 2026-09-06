@@ -146,31 +146,65 @@
         </div>
       </div>
 
-      <!-- Right: Status Pill & Utility Actions -->
-      <div class="flex items-center gap-2">
+      <!-- Right: Status Pill & App Mode Selector -->
+      <div class="flex items-center gap-2.5">
         <div id="status-operational-pill" class="px-3 py-1 rounded-full bg-cyan-950 border border-cyan-400 text-cyan-300 text-xs font-mono font-bold tracking-wider shadow-sm shadow-cyan-500/30">
           STATUS: <span class="text-emerald-400">OPERATIONAL</span>
         </div>
 
-        <button id="btn-enter-training" class="px-2.5 py-1 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-500/80 text-amber-300 text-xs font-mono font-bold transition-all shadow-sm shadow-amber-500/20">
-          🚀 DEMO
-        </button>
-        <button id="btn-exit-training" class="hidden px-2.5 py-1 rounded bg-rose-950 hover:bg-rose-900 border border-rose-500 text-rose-300 text-xs font-mono font-bold transition-all animate-pulse">
-          🚪 EXIT DEMO
-        </button>
+        <!-- Segmented Mode Switcher (Demo vs Hardware) -->
+        <div class="flex items-center bg-[#020712] rounded-lg p-0.5 border border-cyan-500/60 shadow-inner">
+          <button id="btn-mode-demo" class="px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md shadow-amber-500/30 flex items-center gap-1 cursor-pointer">
+            <span>🚀 DEMO SIMULATOR</span>
+          </button>
+          <button id="btn-mode-hardware" class="px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer">
+            <span>🔌 HARDWARE MODE</span>
+          </button>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- ================= TRAINING MODE NOTICE BANNER ================= -->
-  <div id="training-mode-banner" class="hidden mx-4 mt-2 p-2 bg-amber-950/70 border border-amber-500/80 rounded flex items-center justify-between text-xs font-mono text-amber-200">
+  <!-- ================= DEMO MODE SIMULATION HARNESS ================= -->
+  <div id="demo-mode-bar" class="mx-4 mt-2 px-3 py-1.5 bg-[#051020]/90 border border-cyan-500/60 rounded flex flex-wrap items-center justify-between gap-2 text-xs font-mono shadow-md">
     <div class="flex items-center gap-2">
-      <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-bold text-[10px]">TRAINING SIMULATOR</span>
-      <span>Virtual Mine Hazards & Physics Simulator Active. Use bottom controls to inject hazards.</span>
+      <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-bold text-[10px] animate-pulse">DEMO ACTIVE</span>
+      <span class="text-cyan-200 text-[11px]">Virtual Mine Simulator (38 km/h) | 77 GHz Radar + Camera AI + Laser ToF + Inclinometer</span>
     </div>
-    <button id="btn-banner-exit-demo" class="px-2.5 py-0.5 rounded bg-rose-900 hover:bg-rose-800 text-rose-100 text-[11px] font-bold">
-      Exit Demo
-    </button>
+    <div class="flex flex-wrap items-center gap-1.5">
+      <span class="text-[10px] text-slate-400 font-bold">TEST HAZARD:</span>
+      <button class="btn-hazard-trigger px-2 py-1 bg-rose-950/90 hover:bg-rose-900 border border-rose-500 text-rose-300 text-[10px] rounded font-bold transition-all" data-hazard="MINER_IN_FOG" data-dist="7.0">
+        👷 Miner in Fog (7m)
+      </button>
+      <button class="btn-hazard-trigger px-2 py-1 bg-amber-950/90 hover:bg-amber-900 border border-amber-500 text-amber-300 text-[10px] rounded font-bold transition-all" data-hazard="LV_BLINDSPOT" data-dist="8.5">
+        🚙 Bolero Blindspot (8.5m)
+      </button>
+      <button class="btn-hazard-trigger px-2 py-1 bg-rose-950/90 hover:bg-rose-900 border border-rose-500 text-rose-300 text-[10px] rounded font-bold transition-all" data-hazard="BERM_DRIFT_LEFT" data-dist="0.8">
+        ⚠️ Berm Drift Left (0.8m)
+      </button>
+      <button class="btn-hazard-trigger px-2 py-1 bg-rose-950/90 hover:bg-rose-900 border border-rose-500 text-rose-300 text-[10px] rounded font-bold transition-all" data-hazard="BERM_DRIFT_RIGHT" data-dist="0.8">
+        ⚠️ Berm Drift Right (0.8m)
+      </button>
+      <button class="btn-hazard-trigger px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500 text-cyan-300 text-[10px] rounded font-bold transition-all" data-hazard="NONE" data-dist="999.0">
+        🛡️ Clear Road (Safe)
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= HARDWARE MODE STATUS BANNER ================= -->
+  <div id="hardware-mode-bar" class="hidden mx-4 mt-2 px-3 py-1.5 bg-[#030914]/90 border border-cyan-400/80 rounded flex flex-wrap items-center justify-between gap-2 text-xs font-mono shadow-md">
+    <div class="flex items-center gap-2">
+      <span class="px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold text-[10px]">HARDWARE MODE</span>
+      <span class="text-cyan-200 text-[11px]" id="hw-banner-status-text">Ready to pair with physical sensors (Raspberry Pi 4B + ESP32 Node) via USB Serial or Ingress API</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-quick-pulse-test" class="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] font-bold rounded shadow transition-all cursor-pointer">
+        ⚡ Pulse Test Frame
+      </button>
+      <button id="btn-header-hw-modal" class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold rounded shadow transition-all cursor-pointer">
+        🔌 Sensor Pairing Hub
+      </button>
+    </div>
   </div>
 
   <!-- ================= MAIN VIEWPORT CONTAINER ================= -->
@@ -239,26 +273,34 @@
             </div>
           </div>
 
-          <!-- 2. THERMAL VIEWPORT -->
+          <!-- 2. OPTICAL AI & THERMAL LWIR VIEWPORT -->
           <div class="neon-panel p-2.5 flex flex-col justify-between">
             <div class="flex items-center justify-between border-b border-cyan-900/60 pb-1.5 mb-1.5">
               <span class="text-xs font-bold font-mono text-cyan-300 tracking-wider flex items-center gap-1.5">
-                <span>🔥</span> THERMAL VIEWPORT
+                <span id="cam-view-icon">📹</span> <span id="cam-view-title">CAMERA AI VISION</span>
               </span>
-              <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40">LIVE THERMAL IMAGING</span>
+              <!-- Toggle Buttons for Camera vs Thermal -->
+              <div class="flex items-center gap-1">
+                <button id="btn-toggle-cam" class="text-[8px] font-mono px-1.5 py-0.5 rounded bg-cyan-600 text-white font-bold cursor-pointer transition-all">
+                  OPTICAL
+                </button>
+                <button id="btn-toggle-thermal" class="text-[8px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40 hover:text-white cursor-pointer transition-all">
+                  THERMAL
+                </button>
+              </div>
             </div>
 
             <div class="relative w-full h-[140px] bg-[#030a16] rounded border border-cyan-900/60 flex items-center justify-center overflow-hidden shadow-inner">
-              <canvas id="thermal-canvas" class="w-full h-full object-cover hidden"></canvas>
               <canvas id="camera-canvas" class="w-full h-full object-cover"></canvas>
+              <canvas id="thermal-canvas" class="w-full h-full object-cover hidden"></canvas>
               <!-- Overlay Tag -->
-              <div class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 border border-cyan-900 text-[8px] font-mono text-cyan-300">
+              <div id="cam-overlay-tag" class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 border border-cyan-900 text-[8px] font-mono text-cyan-300">
                 1080p AI VISION | YOLOv8-Nano
               </div>
             </div>
 
             <div class="flex items-center justify-between text-[10px] font-mono text-cyan-300 pt-1.5 mt-1 border-t border-cyan-900/40">
-              <span class="px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30">THERMAL ACTIVE</span>
+              <span class="px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30">AI PERCEPTION ACTIVE</span>
               <span id="camera-hazard-type" class="text-emerald-400 font-bold">HAUL ROAD CLEAR</span>
             </div>
           </div>
@@ -324,11 +366,19 @@
                 </div>
               </div>
 
-              <!-- Slope Grade -->
-              <div class="bg-slate-950/80 border border-cyan-900/60 p-2 rounded">
-                <div class="text-[8px] text-slate-400">SLOPE / CANT</div>
-                <div id="hud-imu-grade-val" class="text-sm font-bold text-amber-400">6% GRADE</div>
-                <div class="text-[8px] text-slate-400">PITCH: <span id="hud-pitch" class="text-white">-2.8°</span></div>
+              <!-- Slope Grade & MPU6050 Inclinometer Artificial Horizon -->
+              <div class="bg-slate-950/80 border border-cyan-900/60 p-1.5 rounded flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                  <span class="text-[8px] text-slate-400">INCLINOMETER / SLOPE</span>
+                  <span id="hud-imu-grade-val" class="text-[11px] font-bold text-amber-400">6% GRADE</span>
+                </div>
+                <div class="relative w-full h-[46px] bg-[#020814] rounded border border-cyan-900/60 overflow-hidden my-1">
+                  <canvas id="inclinometer-canvas" class="w-full h-full"></canvas>
+                </div>
+                <div class="flex justify-between text-[8px] text-slate-400">
+                  <span>PITCH: <b id="hud-pitch" class="text-white">-2.8°</b></span>
+                  <span>ROLL: <b id="hud-roll" class="text-emerald-400">+0.5°</b></span>
+                </div>
               </div>
 
               <!-- Deposit Distance -->
@@ -647,8 +697,20 @@
     </div>
   </div>
 
-  <!-- Live Clock Script -->
+  <!-- Error & Status Diagnostics Logger -->
   <script>
+    window.addEventListener('error', (e) => {
+      fetch('/api/notes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          author: 'JS_RUNTIME_ERROR',
+          category: 'INCIDENT',
+          content: `${e.message} at ${e.filename || 'unknown'}:${e.lineno || 0}`
+        })
+      });
+    });
+
     setInterval(() => {
       const now = new Date();
       const el = document.getElementById('top-live-clock');
@@ -669,6 +731,18 @@
 
   <script>
     lucide.createIcons();
+    setTimeout(() => {
+      const rc = document.getElementById('radar-canvas');
+      const cc = document.getElementById('camera-canvas');
+      const sc = document.getElementById('speedometer-gauge-canvas');
+      const ac = document.getElementById('ar-lane-canvas');
+      const info = `Radar: ${rc?.width}x${rc?.height}, Cam: ${cc?.width}x${cc?.height}, Speed: ${sc?.width}x${sc?.height}, AR: ${ac?.width}x${ac?.height}`;
+      fetch('/api/notes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ author: 'CANVAS_DIAG', category: 'GENERAL', content: info })
+      });
+    }, 1500);
   </script>
 </body>
 </html>
