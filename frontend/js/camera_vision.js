@@ -34,6 +34,97 @@ class CameraVisionRenderer {
     const h = this.height;
     this.frame++;
 
+    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (packet && packet.mode === "HARDWARE_STANDBY"));
+
+    if (isHardwareStandby) {
+      // 1. Deep Cyber Standby Background (Zero Pseudo Data)
+      ctx.fillStyle = "#030712";
+      ctx.fillRect(0, 0, w, h);
+
+      // Cyber Matrix Grid
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.08)";
+      ctx.lineWidth = 1;
+      const step = 28;
+      for (let x = 0; x < w; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Tactical Corner Brackets (Glacier Cyan)
+      const bLen = 16;
+      ctx.strokeStyle = "#00d2ff";
+      ctx.lineWidth = 2;
+      // TL
+      ctx.beginPath(); ctx.moveTo(12, 12 + bLen); ctx.lineTo(12, 12); ctx.lineTo(12 + bLen, 12); ctx.stroke();
+      // TR
+      ctx.beginPath(); ctx.moveTo(w - 12 - bLen, 12); ctx.lineTo(w - 12, 12); ctx.lineTo(w - 12, 12 + bLen); ctx.stroke();
+      // BL
+      ctx.beginPath(); ctx.moveTo(12, h - 12 - bLen); ctx.lineTo(12, h - 12); ctx.lineTo(12 + bLen, h - 12); ctx.stroke();
+      // BR
+      ctx.beginPath(); ctx.moveTo(w - 12 - bLen, h - 12); ctx.lineTo(w - 12, h - 12); ctx.lineTo(w - 12, h - 12 - bLen); ctx.stroke();
+
+      // Central Targeting Reticle (Passive Standby)
+      const cx = w / 2;
+      const cy = h / 2;
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx - 44, cy); ctx.lineTo(cx - 12, cy);
+      ctx.moveTo(cx + 12, cy); ctx.lineTo(cx + 44, cy);
+      ctx.moveTo(cx, cy - 44); ctx.lineTo(cx, cy - 12);
+      ctx.moveTo(cx, cy + 12); ctx.lineTo(cx, cy + 44);
+      ctx.stroke();
+
+      // Center Standby Banner Box
+      const boxW = Math.min(270, w - 40);
+      const boxH = 58;
+      ctx.fillStyle = "rgba(5, 16, 32, 0.88)";
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
+      ctx.strokeRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
+
+      ctx.textAlign = "center";
+      ctx.font = "bold 11px monospace";
+      ctx.fillStyle = "#00d2ff";
+      ctx.fillText("[ HARDWARE SENSOR STANDBY ]", cx, cy - 10);
+
+      ctx.font = "9px monospace";
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillText("AWAITING LIVE SENSOR STREAM FEED", cx, cy + 6);
+
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillText("INGRESS: /api/telemetry/ingress | 0 FPS", cx, cy + 20);
+
+      // Top Overlay Banners
+      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+      ctx.fillRect(6, 6, 185, 18);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "bold 9px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(`📷 PI CAM 3 WIDE | STANDBY`, 10, 19);
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+      ctx.fillRect(w - 145, 6, 140, 18);
+      ctx.fillStyle = "#00d2ff";
+      ctx.textAlign = "right";
+      ctx.fillText(`YOLOv8-NANO: READY`, w - 10, 19);
+
+      return;
+    }
+
     const speed = (packet && packet.speed_kmh !== undefined) ? packet.speed_kmh : 16.0;
     this.roadOffset = (this.roadOffset + Math.max(0.8, speed * 0.35)) % 40;
 
