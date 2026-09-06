@@ -104,19 +104,52 @@ class ARLaneHUDRenderer {
     ctx.fillStyle = roadGrad;
     ctx.fill();
 
-    // 3. Virtual AR Center Trajectory Dashed Line
+    // 3. Virtual AR Haul Road Perspective Grid (Theme T-03 Glacier Cyan)
     ctx.save();
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = 3;
-    ctx.setLineDash([12, 10]);
-    ctx.lineDashOffset = -this.roadTextureOffset * 22;
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.35)";
+    ctx.lineWidth = 1.5;
+    const gridSteps = 6;
+    for (let i = 1; i <= gridSteps; i++) {
+      const t = Math.pow(i / gridSteps, 1.8);
+      const gridY = vpY + (btmY - vpY) * ((t + this.roadTextureOffset * 0.16) % 1.0);
+      const rowFraction = (gridY - vpY) / (btmY - vpY);
+      const rowLeft = topLeftX + (btmLeftX - topLeftX) * rowFraction;
+      const rowRight = topRightX + (btmRightX - topRightX) * rowFraction;
+
+      ctx.beginPath();
+      ctx.moveTo(rowLeft, gridY);
+      ctx.lineTo(rowRight, gridY);
+      ctx.stroke();
+    }
+
+    // 4. Center Virtual Trajectory & Glowing Cyan Chevrons
+    ctx.strokeStyle = "#00d2ff";
+    ctx.shadowColor = "#00d2ff";
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(vpX, vpY);
     ctx.lineTo(w / 2, btmY);
     ctx.stroke();
+
+    // Moving forward chevrons
+    for (let i = 1; i <= 3; i++) {
+      const ct = (i / 3.5 + this.roadTextureOffset * 0.4) % 1.0;
+      const chY = vpY + (btmY - vpY) * ct;
+      const chSize = 10 + ct * 22;
+      const chX = w / 2;
+
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(chX - chSize, chY + chSize * 0.5);
+      ctx.lineTo(chX, chY);
+      ctx.lineTo(chX + chSize, chY + chSize * 0.5);
+      ctx.stroke();
+    }
     ctx.restore();
 
-    // 4. Berm Safety Walls
+    // 5. Berm Safety Outer Guidelines (Cyan / Green / Red)
     const leftBermCritical = this.currentBermLeft < 1.2;
     const rightBermCritical = this.currentBermRight < 1.2;
 
@@ -124,20 +157,20 @@ class ARLaneHUDRenderer {
     ctx.beginPath();
     ctx.moveTo(topLeftX, vpY);
     ctx.lineTo(btmLeftX, btmY);
-    ctx.strokeStyle = leftBermCritical ? "#ef4444" : "#10b981";
+    ctx.strokeStyle = leftBermCritical ? "#ef4444" : "#00d2ff";
     ctx.lineWidth = leftBermCritical ? 4 : 2.5;
-    ctx.shadowColor = leftBermCritical ? "#ef4444" : "#10b981";
-    ctx.shadowBlur = leftBermCritical ? 15 : 6;
+    ctx.shadowColor = leftBermCritical ? "#ef4444" : "#00d2ff";
+    ctx.shadowBlur = leftBermCritical ? 15 : 8;
     ctx.stroke();
 
     // Right Berm Line
     ctx.beginPath();
     ctx.moveTo(topRightX, vpY);
     ctx.lineTo(btmRightX, btmY);
-    ctx.strokeStyle = rightBermCritical ? "#ef4444" : "#10b981";
+    ctx.strokeStyle = rightBermCritical ? "#ef4444" : "#00d2ff";
     ctx.lineWidth = rightBermCritical ? 4 : 2.5;
-    ctx.shadowColor = rightBermCritical ? "#ef4444" : "#10b981";
-    ctx.shadowBlur = rightBermCritical ? 15 : 6;
+    ctx.shadowColor = rightBermCritical ? "#ef4444" : "#00d2ff";
+    ctx.shadowBlur = rightBermCritical ? 15 : 8;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
