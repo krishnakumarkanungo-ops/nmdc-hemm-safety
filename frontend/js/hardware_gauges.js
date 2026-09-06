@@ -53,6 +53,36 @@ class LaserToFRenderer {
     ctx.fillText("HEMM", cX, cY + 3);
 
     // ToF Left & Right distances
+    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (packet && packet.mode === "HARDWARE_STANDBY"));
+
+    if (isHardwareStandby) {
+      // Standby dotted laser paths
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.25)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(cX - 14, cY); ctx.lineTo(15, cY);
+      ctx.moveTo(cX + 14, cY); ctx.lineTo(w - 15, cY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Standby text overlay
+      ctx.font = "bold 9px monospace";
+      ctx.fillStyle = "#38bdf8";
+      ctx.textAlign = "left";
+      ctx.fillText("L: -- m", 6, 14);
+
+      ctx.textAlign = "right";
+      ctx.fillText("R: -- m", w - 6, 14);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "8px monospace";
+      ctx.fillText("VL53L1X: STANDBY", cX, h - 6);
+      return;
+    }
+
     const tof = (packet && packet.tof_laser) || {};
     const leftDist = (tof.left_m !== undefined) ? tof.left_m : 4.2;
     const rightDist = (tof.right_m !== undefined) ? tof.right_m : 4.1;
@@ -141,8 +171,11 @@ class InclinometerGaugeRenderer {
     const w = this.width;
     const h = this.height;
 
-    const pitch = (packet && packet.pitch_deg !== undefined) ? packet.pitch_deg : -2.8;
-    const roll = (packet && packet.roll_deg !== undefined) ? packet.roll_deg : 0.5;
+    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (packet && packet.mode === "HARDWARE_STANDBY"));
+
+    const pitch = isHardwareStandby ? 0.0 : ((packet && packet.pitch_deg !== undefined) ? packet.pitch_deg : -2.8);
+    const roll = isHardwareStandby ? 0.0 : ((packet && packet.roll_deg !== undefined) ? packet.roll_deg : 0.5);
 
     // Dark Background
     ctx.fillStyle = "#090d16";
@@ -203,17 +236,6 @@ class InclinometerGaugeRenderer {
     // Center Pip
     ctx.arc(cX, cY, 2.5, 0, Math.PI * 2);
     ctx.stroke();
-
-    // Angle Readings in Corner
-    ctx.font = "bold 9px monospace";
-    ctx.fillStyle = "#38bdf8";
-    ctx.textAlign = "left";
-    ctx.fillText(`PITCH: ${pitch > 0 ? "+" : ""}${pitch.toFixed(1)}°`, 6, 14);
-
-    ctx.textAlign = "right";
-    const rollColor = Math.abs(roll) > 10 ? "#ef4444" : "#10b981";
-    ctx.fillStyle = rollColor;
-    ctx.fillText(`ROLL: ${roll > 0 ? "+" : ""}${roll.toFixed(1)}°`, w - 6, 14);
   }
 }
 
