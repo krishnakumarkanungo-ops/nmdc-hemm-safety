@@ -286,8 +286,8 @@
             </div>
 
             <div class="w-full flex items-center justify-between text-[10px] font-mono text-slate-400 mt-2">
-              <span class="text-cyan-400 font-bold">RADAR ACTIVE</span>
-              <span>BEARING: <b class="text-white">280°</b></span>
+              <span id="radar-active-status" class="text-cyan-400 font-bold">RADAR ACTIVE</span>
+              <span>BEARING: <b id="radar-bearing-val" class="text-white">280°</b></span>
             </div>
           </div>
 
@@ -314,8 +314,8 @@
             </div>
 
             <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-2">
-              <span class="text-cyan-400 font-bold">AI PERCEPTION ACTIVE</span>
-              <span class="text-emerald-400">HAUL ROAD CLEAR</span>
+              <span id="ai-perception-status" class="text-cyan-400 font-bold">AI PERCEPTION ACTIVE</span>
+              <span id="ai-haul-road-status" class="text-emerald-400">HAUL ROAD CLEAR</span>
             </div>
           </div>
 
@@ -325,15 +325,15 @@
             <div class="grid grid-cols-3 gap-2 text-center font-mono">
               <div class="bg-[#020712] p-1.5 rounded border border-cyan-950">
                 <div class="text-[9px] text-slate-400">TEMP:</div>
-                <div class="text-xs font-bold text-cyan-300">24°C</div>
+                <div id="env-temp" class="text-xs font-bold text-cyan-300">24°C</div>
               </div>
               <div class="bg-[#020712] p-1.5 rounded border border-cyan-950">
                 <div class="text-[9px] text-slate-400">DUST:</div>
-                <div class="text-xs font-bold text-cyan-300">LOW</div>
+                <div id="env-dust" class="text-xs font-bold text-cyan-300">LOW</div>
               </div>
               <div class="bg-[#020712] p-1.5 rounded border border-cyan-950">
                 <div class="text-[9px] text-slate-400">VISIBILITY:</div>
-                <div class="text-xs font-bold text-cyan-300">8.5m</div>
+                <div id="env-visibility" class="text-xs font-bold text-cyan-300">8.5m</div>
               </div>
             </div>
           </div>
@@ -474,19 +474,19 @@
               <div class="space-y-1 font-mono text-[10px]">
                 <div class="flex items-center justify-between">
                   <span class="text-slate-400">ENGINE:</span>
-                  <span class="text-emerald-400 font-bold">OK</span>
+                  <span id="sys-engine" class="text-emerald-400 font-bold">OK</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-slate-400">HYDRAULICS:</span>
-                  <span class="text-emerald-400 font-bold">OK</span>
+                  <span id="sys-hydraulics" class="text-emerald-400 font-bold">OK</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-slate-400">TIRES:</span>
-                  <span class="text-emerald-400 font-bold">OK</span>
+                  <span id="sys-tires" class="text-emerald-400 font-bold">OK</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-slate-400">DRIVE:</span>
-                  <span class="text-emerald-400 font-bold">OK</span>
+                  <span id="sys-drive" class="text-emerald-400 font-bold">OK</span>
                 </div>
               </div>
             </div>
@@ -497,19 +497,19 @@
               <div class="grid grid-cols-2 gap-1.5 text-center text-[10px]">
                 <div class="bg-[#020712] p-1 rounded border border-cyan-950">
                   <span class="text-slate-500">⚙️ FL</span>
-                  <b class="text-cyan-300 ml-1">102 psi</b>
+                  <b id="tire-fl" class="text-cyan-300 ml-1">102 psi</b>
                 </div>
                 <div class="bg-[#020712] p-1 rounded border border-cyan-950">
                   <span class="text-slate-500">⚙️ FR</span>
-                  <b class="text-cyan-300 ml-1">104 psi</b>
+                  <b id="tire-fr" class="text-cyan-300 ml-1">104 psi</b>
                 </div>
                 <div class="bg-[#020712] p-1 rounded border border-cyan-950">
                   <span class="text-slate-500">⚙️ RL</span>
-                  <b class="text-cyan-300 ml-1">108 psi</b>
+                  <b id="tire-rl" class="text-cyan-300 ml-1">108 psi</b>
                 </div>
                 <div class="bg-[#020712] p-1 rounded border border-cyan-950">
                   <span class="text-slate-500">⚙️ RR</span>
-                  <b class="text-cyan-300 ml-1">110 psi</b>
+                  <b id="tire-rr" class="text-cyan-300 ml-1">110 psi</b>
                 </div>
               </div>
             </div>
@@ -540,8 +540,8 @@
             </div>
 
             <div class="flex justify-between text-[9px] text-slate-400 mt-1">
-              <span>L: <b class="text-white">4.20</b></span>
-              <span>R: <b class="text-white">4.10</b></span>
+              <span>L: <b id="tof-l-foot" class="text-white">4.20</b></span>
+              <span>R: <b id="tof-r-foot" class="text-white">4.10</b></span>
             </div>
           </div>
 
