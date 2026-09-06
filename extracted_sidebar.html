@@ -1,0 +1,126 @@
+<aside id="main-sidebar" class="w-full lg:w-72 bg-slate-950/95 border-b lg:border-b-0 lg:border-r border-slate-800/80 flex flex-col justify-between shrink-0 select-none z-30 lg:min-h-screen lg:sticky lg:top-0">
+47:     
+48:     <div>
+49:       <!-- Top Brand & Mine Location -->
+50:       <div class="p-3.5 border-b border-slate-800/80 flex items-center justify-between">
+51:         <div class="flex items-center gap-2.5">
+52:           <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/60 flex items-center justify-center text-cyan-400 font-bold text-base shadow-md shadow-cyan-500/20">
+53:             ⛏️
+54:           </div>
+55:           <div>
+56:             <div class="flex items-center gap-1.5">
+57:               <span class="font-bold tracking-wider text-xs text-white uppercase font-mono">NMDC BAILADILA</span>
+58:               <span class="px-1.5 py-0.2 text-[9px] font-bold rounded bg-amber-950 text-amber-300 border border-amber-500/40 font-mono">DEP-14</span>
+59:             </div>
+60:             <p class="text-[10px] text-slate-400 font-mono">HEMM Zero-Vis CAS</p>
+61:           </div>
+62:         </div>
+63:         <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900 border border-slate-800">
+64:           <span id="ws-status-led" class="led-indicator led-green" title="Stream Online"></span>
+65:           <span id="ws-status-text" class="text-[10px] font-mono text-emerald-400 font-bold">15 Hz</span>
+66:         </div>
+67:       </div>
+68: 
+69:       <!-- Active Machine Selector Card -->
+70:       <div class="p-3 border-b border-slate-800/60 bg-slate-900/40">
+71:         <div class="flex items-center justify-between mb-1.5">
+72:           <span class="text-[10px] font-mono font-bold text-slate-400 tracking-wider">ACTIVE CAB UNIT:</span>
+73:           <span class="text-[9px] font-mono text-cyan-400 font-semibold">REMOTE SYNC</span>
+74:         </div>
+75:         <select id="select-active-vehicle" class="w-full bg-slate-900 text-cyan-300 font-mono font-bold text-xs rounded px-2.5 py-1.5 border border-slate-700 outline-none cursor-pointer focus:border-cyan-400 shadow-inner">
+76:           <option value="HEMM-DUMP-07" selected>📡 ACTIVE HEMM HARDWARE UNIT (Pi 4B + ESP32)</option>
+77:         </select>
+78:       </div>
+79: 
+80:       <!-- The 3 Core Role-Based Views Navigation -->
+81:       <div class="p-3 space-y-2">
+82:         <div class="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider px-1 mb-1">
+83:           OPERATIONAL ROLE VIEWS
+84:         </div>
+85: 
+86:         <!-- Role 1: In-Cab Operator Cockpit -->
+87:         <button id="btn-view-hud" class="btn-role-nav w-full text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 bg-cyan-600/20 text-white border-cyan-500/60 shadow-md shadow-cyan-500/10">
+88:           <div class="p-1.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-sm shrink-0">
+89:             🚛
+90:           </div>
+91:           <div class="flex-1 min-w-0">
+92:             <div class="flex items-center justify-between">
+93:               <span class="font-bold text-xs font-mono text-cyan-300">HEMM OPERATOR CABIN</span>
+94:               <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/30">DRIVER</span>
+95:             </div>
+96:             <p class="text-[10px] text-slate-400 font-mono mt-0.5 leading-tight">Zero-Visibility HUD & mmWave Radar Scope</p>
+97:           </div>
+98:         </button>
+99: 
+100:         <!-- Role 2: Central Mine Dispatch Control -->
+101:         <button id="btn-view-dispatch" class="btn-role-nav w-full text-left p-2.5 rounded-lg border border-slate-800/80 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-900/80 text-slate-300 transition-all flex items-start gap-2.5">
+102:           <div class="p-1.5 rounded bg-slate-950 border border-slate-700 text-slate-300 text-sm shrink-0">
+103:             🛰️
+104:           </div>
+105:           <div class="flex-1 min-w-0">
+106:             <div class="flex items-center justify-between">
+107:               <span class="font-bold text-xs font-mono text-slate-200">CENTRAL DISPATCH CONTROL</span>
+108:               <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-700">DISPATCH</span>
+109:             </div>
+110:             <p class="text-[10px] text-slate-400 font-mono mt-0.5 leading-tight">Pit GIS Satellite Map & Fleet Telemetry</p>
+111:           </div>
+112:         </button>
+113: 
+114:         <!-- Role 3: Chief Safety Supervisor Command -->
+115:         <button id="btn-view-dual" class="btn-role-nav w-full text-left p-2.5 rounded-lg border border-slate-800/80 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-900/80 text-slate-300 transition-all flex items-start gap-2.5">
+116:           <div class="p-1.5 rounded bg-slate-950 border border-slate-700 text-slate-300 text-sm shrink-0">
+117:             🎛️
+118:           </div>
+119:           <div class="flex-1 min-w-0">
+120:             <div class="flex items-center justify-between">
+121:               <span class="font-bold text-xs font-mono text-slate-200">SUPERVISOR COMMAND DESK</span>
+122:               <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-slate-900 text-amber-400 border border-amber-500/30">COMMAND</span>
+123:             </div>
+124:             <p class="text-[10px] text-slate-400 font-mono mt-0.5 leading-tight">Dual Split Driver Stream + Satellite GIS</p>
+125:           </div>
+126:         </button>
+127:       </div>
+128:     </div>
+129: 
+130:     <!-- Quick Utilities & Hardware / Mode Actions (Sidebar Bottom) -->
+131:     <div class="p-3 border-t border-slate-800/80 bg-slate-900/60 space-y-2">
+132:       <!-- Pair Hardware Hub Button -->
+133:       <button id="btn-open-hw-pairing" class="w-full px-2.5 py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/70 rounded-lg text-xs font-mono text-cyan-300 font-bold flex items-center justify-center gap-2 transition-all shadow-sm shadow-cyan-500/20">
+134:         <span>🔌 PAIR SENSOR HARDWARE</span>
+135:       </button>
+136: 
+137:       <!-- Operator Training Demo Mode Buttons -->
+138:       <button id="btn-enter-training" class="w-full px-2.5 py-2 bg-amber-950/90 hover:bg-amber-900 border border-amber-500/70 rounded-lg text-xs font-mono text-amber-300 font-bold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 hover:scale-[1.02]">
+139:         <span>🚀 OPERATOR TRAINING DEMO</span>
+140:       </button>
+141:       <button id="btn-exit-training" class="hidden w-full px-2.5 py-2 bg-rose-950 hover:bg-rose-900 border border-rose-500 rounded-lg text-xs font-mono text-rose-300 font-bold flex items-center justify-center gap-2 transition-all animate-pulse">
+142:         <span>🚪 EXIT DEMO (LIVE HARDWARE)</span>
+143:       </button>
+144: 
+145:       <!-- Secondary Tools: Notes & Audio -->
+146:       <div class="grid grid-cols-2 gap-1.5 pt-1">
+147:         <button id="btn-open-notes" class="relative px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-mono text-amber-300 flex items-center justify-center gap-1 transition-all" title="Operator Shift Notes">
+148:           <span>📝 NOTES</span>
+149:           <span id="notes-unread-badge" class="hidden absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-rose-600 border border-rose-400 text-white font-bold text-[9px] rounded-full animate-bounce">1</span>
+150:         </button>
+151:         <button id="btn-audio-mute" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-[11px] font-mono text-emerald-400 flex items-center justify-center gap-1 transition-all" title="Toggle In-Cab Alarm Sounds">
+152:           <span>🔊 AUDIO</span>
+153:         </button>
+154:       </div>
+155: 
+156:       <!-- Auto-Remember Machine Toggle Switch -->
+157:       <div class="p-2 bg-slate-950/80 rounded border border-slate-800 flex items-center justify-between gap-2 mt-1 shadow-inner">
+158:         <div class="flex items-center gap-1.5 min-w-0">
+159:           <span class="text-xs">💾</span>
+160:           <div class="truncate">
+161:             <div class="text-[11px] font-bold font-mono text-slate-200 leading-tight">REMEMBER MACHINE</div>
+162:             <div id="toggle-remember-subtext" class="text-[9px] font-mono text-emerald-400 leading-tight">AUTO-LOCK ON RECONNECT</div>
+163:           </div>
+164:         </div>
+165:         <label class="relative inline-flex items-center cursor-pointer shrink-0">
+166:           <input id="toggle-remember-vehicle" type="checkbox" checked class="sr-only peer">
+167:           <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+168:         </label>
+169:       </div>
+170:     </div>
+171:   </aside>
