@@ -47,14 +47,10 @@ async def main():
                     if msg.get("id") == req_id:
                         return msg.get("result", {}).get("result", {}).get("value")
             
+            scripts = await eval_js("JSON.stringify(Array.from(document.scripts).map(s => s.src))")
+            print("Document scripts:", scripts)
             app_exists = await eval_js("typeof window.app")
             print("typeof window.app:", app_exists)
-            
-            cam_exists = await eval_js("Boolean(window.app && window.app.cameraRenderer)")
-            print("cameraRenderer exists:", cam_exists)
-            
-            tof_exists = await eval_js("Boolean(window.app && window.app.tofRenderer)")
-            print("tofRenderer exists:", tof_exists)
             
             imu_exists = await eval_js("Boolean(window.app && window.app.inclinometerRenderer)")
             print("inclinometerRenderer exists:", imu_exists)
