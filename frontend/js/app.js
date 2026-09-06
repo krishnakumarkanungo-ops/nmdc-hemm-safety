@@ -455,7 +455,6 @@ class HEMMSafetyApp {
           const packet = JSON.parse(event.data);
           this.latestPacket = packet;
           this.hasNewPacket = true;
-          this.consumePacket(packet);
         } catch (e) {}
       };
 
@@ -478,39 +477,28 @@ class HEMMSafetyApp {
     this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
   }
 
-  // Optimized Avionics Animation Loop (GPU Smooth & 0 CPU Lag)
+  // Smooth 60 FPS Avionics Render Loop (GPU Accelerated & 0 Lag)
   startRenderLoop() {
-    let lastRenderTime = 0;
-    const frame = (timestamp) => {
-      const activeP = (this.latestPacket && this.latestPacket.all_vehicles_telemetry && this.latestPacket.all_vehicles_telemetry[this.activeVehicleId]) 
-        ? this.latestPacket.all_vehicles_telemetry[this.activeVehicleId] 
-        : this.latestPacket;
-
+    const frame = () => {
+      // 1. Process new telemetry frame if available
       if (this.hasNewPacket && this.latestPacket) {
         this.consumePacket(this.latestPacket);
         this.hasNewPacket = false;
+      }
 
-        if (this.currentView === "HUD" || this.currentView === "DUAL") {
-          try { this.cameraRenderer?.render(activeP); } catch (e) { console.error("Cam render err:", e); }
-          try { this.tofRenderer?.render(activeP); } catch (e) { console.error("ToF render err:", e); }
-          try { this.inclinometerRenderer?.render(activeP); } catch (e) { console.error("IMU render err:", e); }
-          try { this.radarRenderer?.render(); } catch (e) {}
-          try { this.thermalRenderer?.render(); } catch (e) {}
-          try { this.arLaneRenderer?.render(); } catch (e) {}
-          try { this.speedometerRenderer?.render(); } catch (e) {}
-        }
-      } else if (timestamp - lastRenderTime > 100) {
-        // Idle heartbeat refresh (10 FPS)
-        lastRenderTime = timestamp;
-        if (this.currentView === "HUD" || this.currentView === "DUAL") {
-          try { this.cameraRenderer?.render(activeP); } catch (e) { console.error("Cam render err:", e); }
-          try { this.tofRenderer?.render(activeP); } catch (e) { console.error("ToF render err:", e); }
-          try { this.inclinometerRenderer?.render(activeP); } catch (e) { console.error("IMU render err:", e); }
-          try { this.radarRenderer?.render(); } catch (e) {}
-          try { this.thermalRenderer?.render(); } catch (e) {}
-          try { this.arLaneRenderer?.render(); } catch (e) {}
-          try { this.speedometerRenderer?.render(); } catch (e) {}
-        }
+      // 2. Continuous 60 FPS smooth rendering across all instrument canvases
+      if (this.currentView === "HUD" || this.currentView === "DUAL") {
+        const activeP = (this.latestPacket && this.latestPacket.all_vehicles_telemetry && this.latestPacket.all_vehicles_telemetry[this.activeVehicleId]) 
+          ? this.latestPacket.all_vehicles_telemetry[this.activeVehicleId] 
+          : this.latestPacket;
+
+        try { this.cameraRenderer?.render(activeP); } catch (e) {}
+        try { this.tofRenderer?.render(activeP); } catch (e) {}
+        try { this.inclinometerRenderer?.render(activeP); } catch (e) {}
+        try { this.radarRenderer?.render(); } catch (e) {}
+        try { this.thermalRenderer?.render(); } catch (e) {}
+        try { this.arLaneRenderer?.render(); } catch (e) {}
+        try { this.speedometerRenderer?.render(); } catch (e) {}
       }
 
       requestAnimationFrame(frame);
@@ -555,23 +543,23 @@ class HEMMSafetyApp {
       this.speedometerRenderer?.update(activePacket);
     }
 
-    // 3. Dispatch Map update (Google Maps Satellite Live Fleet & Demo Vehicle)
-    const isHw = (this.appMode === "HARDWARE");
-    const hasHwData = (this.packetsIngestedCount > 0);
-    this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
+    // 3. Dispatch Map & Fleet Table update (ONLY when Dispatch view is visible)
+    if (this.currentView === "DISPATCH" || this.currentView === "DUAL") {
+      const isHw = (this.appMode === "HARDWARE");
+      const hasHwData = (this.packetsIngestedCount > 0);
+      this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
+      this.updateDispatchCards(packet);
+    }
 
     // 4. Update Collision Alert Banner
     this.updateCollisionBanner(activePacket);
 
-    // 5. Throttled DOM Text & Gauges Update (80ms)
-    const now = Date.now();
-    if (now - this.lastDomUpdate > 80) {
+    // 5. Throttled DOM Text & Gauges Update (60ms ~ 16 Hz for butter-smooth UI)
+    const now = performance.now();
+    if (now - this.lastDomUpdate > 60) {
       this.lastDomUpdate = now;
       this.updateInstrumentCluster(activePacket);
     }
-
-    // 6. Fleet Table & Dispatch Cards Update
-    this.updateDispatchCards(packet);
   }
 
   updateCabUnitOptions() {
@@ -1325,6 +1313,15 @@ class HEMMSafetyApp {
       };
       this.latestPacket = demoPacket;
       this.lastDomUpdate = 0;
+      if (this.speedometerRenderer) {
+        this.speedometerRenderer.currentSpeed = 38.0;
+        this.speedometerRenderer.targetSpeed = 38.0;
+        this.speedometerRenderer.currentRpm = 1750;
+      }
+      if (this.arLaneRenderer) {
+        this.arLaneRenderer.currentBermLeft = 4.2;
+        this.arLaneRenderer.currentBermRight = 4.1;
+      }
       this.updateInstrumentCluster(demoPacket);
       this.consumePacket(demoPacket);
 
@@ -1432,6 +1429,11 @@ class HEMMSafetyApp {
           active_hazard: "NONE"
         };
         this.latestPacket = hwStandbyPacket;
+        if (this.speedometerRenderer) {
+          this.speedometerRenderer.currentSpeed = 0.0;
+          this.speedometerRenderer.targetSpeed = 0.0;
+          this.speedometerRenderer.currentRpm = 0;
+        }
         this.consumePacket(hwStandbyPacket);
 
         if (this.currentView === "HUD" || this.currentView === "DUAL") {
