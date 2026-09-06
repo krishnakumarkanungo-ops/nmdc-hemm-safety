@@ -381,6 +381,15 @@ class SimulationEngine:
         my_speed = v_info["speed"]
         my_heading = v_info.get("heading", 182.0)
 
+        # In Simulation mode with no active hazard, apply realistic dynamic haulage cruise fluctuations
+        if self.mode == "SIMULATION" and vehicle_id == "HEMM-DUMP-07" and self.active_hazard == HazardTypeEnum.NONE.value and not v_info.get("auto_stop", False):
+            my_speed = round(38.0 + math.sin(now * 0.4) * 1.5 + math.cos(now * 0.22) * 0.8, 1)
+            v_info["speed"] = my_speed
+            v_info["rpm"] = int(1680 + (my_speed - 36.0) * 40 + math.sin(now * 1.0) * 25)
+            v_info["brake_psi"] = round(max(42.0, min(75.0, 58.0 - math.sin(now * 0.4) * 10.0)), 1)
+            v_info["pitch"] = round(-2.8 + math.sin(now * 0.3) * 0.3, 1)
+            v_info["roll"] = round(0.5 + math.cos(now * 0.3) * 0.3, 1)
+
         # Hardware mode override
         if self.mode == "HARDWARE":
             if vehicle_id in self.hardware_packets:
@@ -537,6 +546,11 @@ class SimulationEngine:
         berm_left = 4.2
         berm_right = 4.1
         lane_offset = 0.0
+
+        # Check if active hazard duration has expired
+        if self.hazard_duration > 0 and (now - self.hazard_start_time) > self.hazard_duration:
+            self.active_hazard = HazardTypeEnum.NONE.value
+            self.hazard_duration = 0.0
 
         # Process Explicit User Injected Hazard Command
         h = self.active_hazard
