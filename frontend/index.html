@@ -226,104 +226,7 @@
   <!-- ================= MAIN VIEWPORT (RIGHT AREA) ================= -->
   <div class="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
 
-    <!-- ================= TOP OPERATIONS HEADER ================= -->
-    <header class="w-full bg-[#030914]/95 border-b-2 border-cyan-400 px-4 py-2 flex flex-col gap-1 shadow-lg shadow-cyan-500/10 z-20">
-      <!-- Subtitle Line -->
-      <div class="flex items-center justify-between text-[10px] font-mono tracking-wider text-cyan-400">
-        <div>NMDC HEMM DASHBOARD | BAILADILA MINES | <b class="text-cyan-300">T-03: GLACIER CYAN</b></div>
-        <div class="flex items-center gap-3">
-          <span class="text-cyan-300 font-bold">STREAM ONLINE (10 Hz)</span>
-        </div>
-      </div>
 
-      <!-- Main Navigation & Badges Bar -->
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <!-- Left: Mines Operations -->
-        <div class="flex items-center gap-2.5">
-          <div>
-            <div class="text-xs md:text-sm font-bold tracking-wider text-white uppercase font-mono flex items-center gap-1.5">
-              <span>NMDC | BAILADILA OPERATIONS</span>
-            </div>
-            <p class="text-[9px] text-cyan-400/80 font-mono">ZERO-VISIBILITY HEMM AVIONICS</p>
-          </div>
-        </div>
-
-        <!-- Center: Telemetry Badges (TIME, BATTERY, SIGNAL, STATUS) -->
-        <div class="flex flex-wrap items-center gap-2 md:gap-3 text-xs font-mono">
-          <div class="bg-cyan-950/70 border border-cyan-500/50 px-2.5 py-1 rounded shadow-inner">
-            <span class="text-cyan-400 font-bold text-[10px]">TIME:</span>
-            <span id="top-live-clock" class="text-white font-bold ml-1">08:45 AM</span>
-          </div>
-
-          <div class="bg-cyan-950/70 border border-cyan-500/50 px-2.5 py-1 rounded shadow-inner">
-            <span class="text-cyan-400 font-bold text-[10px]">BATTERY:</span>
-            <span class="text-cyan-300 font-bold ml-1">88%</span>
-          </div>
-
-          <div class="bg-cyan-950/70 border border-cyan-500/50 px-2.5 py-1 rounded shadow-inner">
-            <span class="text-cyan-400 font-bold text-[10px]">SIGNAL:</span>
-            <span class="text-cyan-300 font-bold ml-1">100%</span>
-          </div>
-
-          <div class="bg-cyan-950/70 border border-cyan-500/50 px-2.5 py-1 rounded shadow-inner">
-            <span class="text-cyan-400 font-bold text-[10px]">STATUS:</span>
-            <span class="text-emerald-400 font-bold ml-1">OPERATIONAL</span>
-          </div>
-        </div>
-
-        <!-- Right: Segmented Mode Selector Switch -->
-        <div class="flex items-center bg-[#020712] p-0.5 rounded-lg border border-cyan-500/60 shadow-md">
-          <button id="btn-mode-demo" class="px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md shadow-amber-500/30 flex items-center gap-1 cursor-pointer">
-            <span>🚀 DEMO SIMULATOR</span>
-          </button>
-          <button id="btn-mode-hardware" class="px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer">
-            <span>🔌 HARDWARE MODE</span>
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- ================= DEMO MODE SIMULATION HARNESS BAR ================= -->
-    <div id="demo-mode-bar" class="w-full bg-[#030d1d] border-b border-cyan-900/80 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 z-20">
-      <div class="flex items-center gap-2">
-        <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-bold font-mono text-[10px] tracking-wider">DEMO ACTIVE</span>
-        <span class="text-cyan-300 text-xs font-mono">Virtual Mine Simulator (38 km/h) | 77 GHz Radar + Camera AI + Laser ToF + Inclinometer</span>
-      </div>
-      <div class="flex flex-wrap items-center gap-1.5 text-xs font-mono">
-        <span class="text-slate-400 text-[10px] mr-1">TEST HAZARD:</span>
-        <button onclick="window.app.injectHazard('MINER_IN_FOG', 7.0)" class="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500 rounded text-amber-200 text-xs font-bold transition-all">
-          👷 Miner in Fog (7m)
-        </button>
-        <button onclick="window.app.injectHazard('VEHICLE_BLINDSPOT', 8.5)" class="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500 rounded text-cyan-200 text-xs font-bold transition-all">
-          🚙 Bolero Blindspot (8.5m)
-        </button>
-        <button onclick="window.app.injectHazard('BERM_DRIFT_LEFT', 0.8)" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 border border-rose-500 rounded text-rose-200 text-xs font-bold transition-all">
-          ⚠️ Berm Drift Left (0.8m)
-        </button>
-        <button onclick="window.app.injectHazard('BERM_DRIFT_RIGHT', 0.8)" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 border border-rose-500 rounded text-rose-200 text-xs font-bold transition-all">
-          ⚠️ Berm Drift Right (0.8m)
-        </button>
-        <button onclick="window.app.injectHazard('NONE', 999.0)" class="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 rounded text-emerald-300 text-xs font-bold transition-all">
-          🛡️ Clear Road (Safe)
-        </button>
-      </div>
-    </div>
-
-    <!-- ================= HARDWARE MODE STATUS BAR (WHEN IN HARDWARE MODE) ================= -->
-    <div id="hardware-mode-bar" class="hidden w-full bg-[#021324] border-b border-cyan-500/40 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 z-20">
-      <div class="flex items-center gap-2">
-        <span class="px-2 py-0.5 rounded bg-cyan-600 text-white font-bold font-mono text-[10px] tracking-wider">HARDWARE STANDBY</span>
-        <span class="text-cyan-300 text-xs font-mono">Listening for Physical ESP32 / Arduino / USB Serial sensor packets</span>
-      </div>
-      <div class="flex items-center gap-2 text-xs font-mono">
-        <button id="btn-quick-pulse-test" class="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded shadow transition-all">
-          ⚡ Pulse Test Frame
-        </button>
-        <button id="btn-header-hw-modal" class="px-3 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-400 text-cyan-300 font-bold rounded shadow transition-all">
-          🔌 Sensor Pairing Hub
-        </button>
-      </div>
-    </div>
 
     <!-- ================= COLLISION ALERT & TELEMETRY RIBBON ================= -->
     <div id="collision-alert-banner" class="w-full bg-[#020b18]/90 border-b border-cyan-900 px-4 py-2 flex flex-wrap items-center justify-between gap-3 z-10" data-state="CLEAR">
@@ -733,45 +636,36 @@
 
     </main>
 
-    <!-- ================= BOTTOM NAVIGATION DOCK (MINIMAL AVIONICS FOOTER) ================= -->
-    <footer class="w-full bg-[#030914]/95 border-t-2 border-cyan-400/90 px-4 py-2 flex flex-wrap items-center justify-between gap-3 shadow-2xl z-20">
-      <!-- Left Navigation Status Badges -->
-      <div class="flex flex-wrap items-center gap-2 md:gap-4 font-mono text-xs">
-        <!-- Alarms Button -->
-        <button id="btn-dock-alarms" class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-900 text-cyan-300">
-          <span class="text-amber-400">⚠️</span>
-          <span>ALARMS: <b id="dock-alarm-text" class="text-emerald-400">SYSTEM OK</b></span>
-        </button>
-
-        <!-- Communications / Shift Notes Button -->
-        <button id="btn-open-notes-dock" onclick="window.app.openNotesModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-900 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer">
-          <span>💬</span>
-          <span>COMMUNICATIONS</span>
-        </button>
-
-        <!-- Map / Cockpit Quick Toggle -->
-        <button onclick="window.app.switchView(window.app.currentView === 'HUD' ? 'DISPATCH' : 'HUD')" class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400 text-white font-bold shadow-md shadow-cyan-500/20 transition-all cursor-pointer">
-          <span>🔄</span>
-          <span>TOGGLE HUD / MAP</span>
-        </button>
-
-        <!-- Diagnostics / Hardware Pairing Button -->
-        <button onclick="window.app.openHardwareModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-900 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer">
-          <span>🔧</span>
-          <span>DIAGNOSTICS & PAIR</span>
-        </button>
-      </div>
-
-      <!-- Right: NMDC Official Emblem & Mines Branch -->
-      <div class="flex items-center gap-2 font-mono">
-        <div class="text-right">
-          <div class="text-[11px] font-bold text-cyan-300 tracking-wider">NMDC LIMITED</div>
-          <div class="text-[9px] text-slate-400">BAILADILA IRON ORE COMPLEX</div>
+    <!-- ================= BOTTOM LINE ================= -->
+    <footer id="main-bottom-dock" class="w-full bg-[#030914]/95 border-t-2 border-cyan-400/80 px-4 py-2 flex items-center justify-between min-h-[44px] transition-all z-20">
+      <!-- When in DEMO MODE: Simulation Harness -->
+      <div id="bottom-demo-harness" class="w-full flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2 font-mono">
+          <span class="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-bold text-[10px] tracking-wider">DEMO SIMULATOR (38 km/h)</span>
+          <span class="text-cyan-300 text-xs hidden sm:inline">77 GHz Radar + Camera AI + Laser ToF + Inclinometer</span>
         </div>
-        <div class="w-8 h-8 rounded-full bg-cyan-950 border border-cyan-400 flex items-center justify-center text-cyan-300 font-bold text-sm shadow-md shadow-cyan-500/30">
-          ⛏️
+        <div class="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+          <span class="text-slate-400 text-[10px] mr-1">TEST HAZARD:</span>
+          <button onclick="window.app.injectHazard('MINER_IN_FOG', 7.0)" class="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500 rounded text-amber-200 text-xs font-bold transition-all cursor-pointer">
+            👷 Miner in Fog (7m)
+          </button>
+          <button onclick="window.app.injectHazard('VEHICLE_BLINDSPOT', 8.5)" class="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500 rounded text-cyan-200 text-xs font-bold transition-all cursor-pointer">
+            🚙 Bolero Blindspot (8.5m)
+          </button>
+          <button onclick="window.app.injectHazard('BERM_DRIFT_LEFT', 0.8)" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 border border-rose-500 rounded text-rose-200 text-xs font-bold transition-all cursor-pointer">
+            ⚠️ Berm Drift Left (0.8m)
+          </button>
+          <button onclick="window.app.injectHazard('BERM_DRIFT_RIGHT', 0.8)" class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 border border-rose-500 rounded text-rose-200 text-xs font-bold transition-all cursor-pointer">
+            ⚠️ Berm Drift Right (0.8m)
+          </button>
+          <button onclick="window.app.injectHazard('NONE', 999.0)" class="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 rounded text-emerald-300 text-xs font-bold transition-all cursor-pointer">
+            🛡️ Clear Road (Safe)
+          </button>
         </div>
       </div>
+
+      <!-- When in HARDWARE MODE: Khali (empty blank line) -->
+      <div id="bottom-hardware-blank" class="hidden w-full py-1"></div>
     </footer>
 
   </div>
