@@ -1051,23 +1051,13 @@ class HEMMSafetyApp {
   setAppMode(mode) {
     this.appMode = mode; // "DEMO_TRAINING" or "HARDWARE"
 
-    const btnModeDemo = document.getElementById("btn-mode-demo");
-    const btnModeHw = document.getElementById("btn-mode-hardware");
     const btnEnter = document.getElementById("btn-enter-training");
     const btnExit = document.getElementById("btn-exit-training");
-    const demoBar = document.getElementById("demo-mode-bar");
-    const hwBar = document.getElementById("hardware-mode-bar");
-    const deckHw = document.getElementById("deck-hardware-status");
-    const deckDemo = document.getElementById("deck-demo-harness");
+    const bottomDemo = document.getElementById("bottom-demo-harness");
+    const bottomHw = document.getElementById("bottom-hardware-blank");
 
     if (mode === "DEMO_TRAINING") {
-      // Highlight Demo buttons (Header & Sidebar)
-      if (btnModeDemo) {
-        btnModeDemo.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md shadow-amber-500/30 flex items-center gap-1 cursor-pointer";
-      }
-      if (btnModeHw) {
-        btnModeHw.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer";
-      }
+      // Highlight Demo in sidebar
       if (btnEnter) {
         btnEnter.className = "flex-1 px-2 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 rounded-lg text-[11px] font-mono font-bold flex items-center justify-center gap-1 shadow-md shadow-amber-500/20 transition-all cursor-pointer";
       }
@@ -1075,10 +1065,9 @@ class HEMMSafetyApp {
         btnExit.className = "flex-1 px-2 py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/60 rounded-lg text-[11px] font-mono text-cyan-300 font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer";
       }
 
-      demoBar?.classList.remove("hidden");
-      hwBar?.classList.add("hidden");
-      deckHw?.classList.add("hidden");
-      deckDemo?.classList.remove("hidden");
+      // Bottom line: Show demo simulation hazard test bar
+      bottomDemo?.classList.remove("hidden");
+      bottomHw?.classList.add("hidden");
 
       this.activeVehicleId = "HEMM-DUMP-07";
       if (this.dispatchMap) {
@@ -1092,13 +1081,7 @@ class HEMMSafetyApp {
         body: JSON.stringify({ mode: "SIMULATION" })
       }).then(() => this.fetchTelemetryHttp()).catch(() => {});
     } else {
-      // HARDWARE MODE (Header & Sidebar)
-      if (btnModeDemo) {
-        btnModeDemo.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer";
-      }
-      if (btnModeHw) {
-        btnModeHw.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-cyan-600 text-white shadow-md shadow-cyan-500/30 flex items-center gap-1 cursor-pointer";
-      }
+      // HARDWARE MODE: Highlight Hardware in sidebar
       if (btnEnter) {
         btnEnter.className = "flex-1 px-2 py-2 bg-amber-950 hover:bg-amber-900 border border-amber-500/50 text-amber-300 rounded-lg text-[11px] font-mono font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer";
       }
@@ -1106,10 +1089,9 @@ class HEMMSafetyApp {
         btnExit.className = "flex-1 px-2 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[11px] font-mono font-bold flex items-center justify-center gap-1 shadow-md shadow-cyan-500/30 transition-all cursor-pointer";
       }
 
-      demoBar?.classList.add("hidden");
-      hwBar?.classList.remove("hidden");
-      deckHw?.classList.remove("hidden");
-      deckDemo?.classList.add("hidden");
+      // Bottom line: Khali / empty in hardware mode
+      bottomDemo?.classList.add("hidden");
+      bottomHw?.classList.remove("hidden");
 
       fetch("/api/mode/toggle", {
         method: "POST",
