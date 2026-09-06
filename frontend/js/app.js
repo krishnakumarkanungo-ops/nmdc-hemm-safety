@@ -480,85 +480,94 @@ class HEMMSafetyApp {
   // Smooth 60 FPS Avionics Render Loop (GPU Accelerated & 0 Lag)
   startRenderLoop() {
     const frame = () => {
-      // 1. Process new telemetry frame if available
-      if (this.hasNewPacket && this.latestPacket) {
-        this.consumePacket(this.latestPacket);
-        this.hasNewPacket = false;
+      try {
+        // 1. Process new telemetry frame if available
+        if (this.hasNewPacket && this.latestPacket) {
+          this.consumePacket(this.latestPacket);
+          this.hasNewPacket = false;
+        }
+
+        // 2. Continuous 60 FPS smooth rendering across all instrument canvases
+        if (this.currentView === "HUD" || this.currentView === "DUAL") {
+          const activeP = (this.latestPacket && this.latestPacket.all_vehicles_telemetry && this.latestPacket.all_vehicles_telemetry[this.activeVehicleId]) 
+            ? this.latestPacket.all_vehicles_telemetry[this.activeVehicleId] 
+            : this.latestPacket;
+
+          try { this.cameraRenderer?.render(activeP); } catch (e) {}
+          try { this.tofRenderer?.render(activeP); } catch (e) {}
+          try { this.inclinometerRenderer?.render(activeP); } catch (e) {}
+          try { this.radarRenderer?.render(); } catch (e) {}
+          try { this.thermalRenderer?.render(); } catch (e) {}
+          try { this.arLaneRenderer?.render(); } catch (e) {}
+          try { this.speedometerRenderer?.render(); } catch (e) {}
+        }
+      } catch (loopErr) {
+        console.error("[RenderLoop Protected Error]:", loopErr);
+      } finally {
+        requestAnimationFrame(frame);
       }
-
-      // 2. Continuous 60 FPS smooth rendering across all instrument canvases
-      if (this.currentView === "HUD" || this.currentView === "DUAL") {
-        const activeP = (this.latestPacket && this.latestPacket.all_vehicles_telemetry && this.latestPacket.all_vehicles_telemetry[this.activeVehicleId]) 
-          ? this.latestPacket.all_vehicles_telemetry[this.activeVehicleId] 
-          : this.latestPacket;
-
-        try { this.cameraRenderer?.render(activeP); } catch (e) {}
-        try { this.tofRenderer?.render(activeP); } catch (e) {}
-        try { this.inclinometerRenderer?.render(activeP); } catch (e) {}
-        try { this.radarRenderer?.render(); } catch (e) {}
-        try { this.thermalRenderer?.render(); } catch (e) {}
-        try { this.arLaneRenderer?.render(); } catch (e) {}
-        try { this.speedometerRenderer?.render(); } catch (e) {}
-      }
-
-      requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
   }
 
   consumePacket(packet) {
-    const activePacket = (packet.all_vehicles_telemetry && packet.all_vehicles_telemetry[this.activeVehicleId]) 
-      ? packet.all_vehicles_telemetry[this.activeVehicleId] 
-      : packet;
+    if (!packet) return;
+    try {
+      const activePacket = (packet.all_vehicles_telemetry && packet.all_vehicles_telemetry[this.activeVehicleId]) 
+        ? packet.all_vehicles_telemetry[this.activeVehicleId] 
+        : packet;
 
-    // 1. Audio Alarm update
-    this.audioAlarm?.updateState(activePacket.collision_state);
+      // 1. Audio Alarm update
+      this.audioAlarm?.updateState(activePacket.collision_state);
 
-    // 2. HUD Canvases data update
-    if (this.currentView === "HUD" || this.currentView === "DUAL") {
-      this.radarRenderer?.update(activePacket.radar, activePacket.collision_state);
+      // 2. HUD Canvases data update
+      if (this.currentView === "HUD" || this.currentView === "DUAL") {
+        this.radarRenderer?.update(activePacket.radar, activePacket.collision_state);
 
-      const hotspotInfo = {
-        detected: activePacket.hotspot_detected,
-        gx: activePacket.hotspot_grid_x,
-        gy: activePacket.hotspot_grid_y,
-        temp: activePacket.hotspot_temp_c,
-        label: activePacket.hotspot_label,
-      };
-      this.thermalRenderer?.update(
-        activePacket.thermal_matrix,
-        activePacket.thermal_min_c,
-        activePacket.thermal_max_c,
-        hotspotInfo
-      );
+        const hotspotInfo = {
+          detected: activePacket.hotspot_detected,
+          gx: activePacket.hotspot_grid_x,
+          gy: activePacket.hotspot_grid_y,
+          temp: activePacket.hotspot_temp_c,
+          label: activePacket.hotspot_label,
+        };
+        this.thermalRenderer?.update(
+          activePacket.thermal_matrix,
+          activePacket.thermal_min_c,
+          activePacket.thermal_max_c,
+          hotspotInfo
+        );
 
-      this.arLaneRenderer?.update(
-        activePacket.berm_proximity,
-        activePacket.fog_density,
-        activePacket.visibility_m,
-        activePacket.collision_state,
-        activePacket.radar
-      );
+        this.arLaneRenderer?.update(
+          activePacket.berm_proximity,
+          activePacket.fog_density,
+          activePacket.visibility_m,
+          activePacket.collision_state,
+          activePacket.radar
+        );
 
-      this.speedometerRenderer?.update(activePacket);
-    }
+        this.speedometerRenderer?.update(activePacket);
+      }
 
-    // 3. Dispatch Map & Fleet Table update (ONLY when Dispatch view is visible)
-    if (this.currentView === "DISPATCH" || this.currentView === "DUAL") {
-      const isHw = (this.appMode === "HARDWARE");
-      const hasHwData = (this.packetsIngestedCount > 0);
-      this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
-      this.updateDispatchCards(packet);
-    }
+      // 3. Dispatch Map & Fleet Table update (ONLY when Dispatch view is visible)
+      if (this.currentView === "DISPATCH" || this.currentView === "DUAL") {
+        const isHw = (this.appMode === "HARDWARE");
+        const hasHwData = (this.packetsIngestedCount > 0);
+        this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
+        this.updateDispatchCards(packet);
+      }
 
-    // 4. Update Collision Alert Banner
-    this.updateCollisionBanner(activePacket);
+      // 4. Update Collision Alert Banner
+      this.updateCollisionBanner(activePacket);
 
-    // 5. Throttled DOM Text & Gauges Update (60ms ~ 16 Hz for butter-smooth UI)
-    const now = performance.now();
-    if (now - this.lastDomUpdate > 60) {
-      this.lastDomUpdate = now;
-      this.updateInstrumentCluster(activePacket);
+      // 5. Throttled DOM Text & Gauges Update (60ms ~ 16 Hz for butter-smooth UI)
+      const now = performance.now();
+      if (now - this.lastDomUpdate > 60) {
+        this.lastDomUpdate = now;
+        this.updateInstrumentCluster(activePacket);
+      }
+    } catch (e) {
+      console.error("[consumePacket Error]:", e);
     }
   }
 
@@ -637,13 +646,18 @@ class HEMMSafetyApp {
       }
     }
 
-    fastSetText("stat-obstacle-distance", targetDetected && dist < 900 ? `${dist.toFixed(1)} m` : "-- m");
-    fastSetText("stat-rel-speed", targetDetected ? `${relSpeed > 0 ? "+" : ""}${relSpeed.toFixed(1)} km/h` : "-- km/h");
-    fastSetText("stat-ttc", packet.time_to_collision_s ? `${packet.time_to_collision_s.toFixed(1)} s` : "-- s");
+    try {
+      fastSetText("stat-obstacle-distance", targetDetected && typeof dist === "number" && dist < 900 ? `${dist.toFixed(1)} m` : "-- m");
+      fastSetText("stat-rel-speed", targetDetected && typeof relSpeed === "number" ? `${relSpeed > 0 ? "+" : ""}${relSpeed.toFixed(1)} km/h` : "-- km/h");
+      fastSetText("stat-ttc", typeof packet.time_to_collision_s === "number" ? `${packet.time_to_collision_s.toFixed(1)} s` : "-- s");
 
-    const vMps = (packet.speed_kmh * 1000) / 3600;
-    const brakeDist = (vMps * vMps) / (2 * 2.8) + (vMps * 0.75);
-    fastSetText("stat-safe-braking", `${brakeDist.toFixed(1)} m`);
+      const spdKmh = typeof packet.speed_kmh === "number" ? packet.speed_kmh : 0.0;
+      const vMps = (spdKmh * 1000) / 3600;
+      const brakeDist = (vMps * vMps) / (2 * 2.8) + (vMps * 0.75);
+      fastSetText("stat-safe-braking", `${brakeDist.toFixed(1)} m`);
+    } catch (bannerErr) {
+      console.error("[updateCollisionBanner Error]:", bannerErr);
+    }
   }
 
   updateInstrumentCluster(packet) {
@@ -769,240 +783,271 @@ class HEMMSafetyApp {
       return;
     }
 
-    fastSetText("hud-speed", packet.speed_kmh.toFixed(1));
-    fastSetText("hud-heading", `${Math.round(packet.heading_deg)}°`);
-    fastSetText("hud-gear", packet.gear || "D3");
-    fastSetText("hud-rpm", String(packet.rpm || "1650"));
-    fastSetText("hud-brake-psi", `${packet.brake_pressure_psi.toFixed(0)} PSI`);
-    fastSetText("hud-pitch", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}°`);
-    fastSetText("hud-roll", `${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}°`);
-    fastSetText("hud-payload", `${packet.payload_tons.toFixed(1)} T`);
-    fastSetText("hud-zone", packet.zone_name || "Deposit 14 Haul Ramp");
-    fastSetText("hud-gps", `${packet.gps.lat.toFixed(5)} N, ${packet.gps.lng.toFixed(5)} E (${packet.gps.altitude_m}m)`);
-    fastSetText("hud-visibility", `${packet.visibility_m.toFixed(1)}m`);
-    fastSetText("hud-mode-tag", packet.mode || "SIMULATION");
+    try {
+      const spd = typeof packet.speed_kmh === "number" ? packet.speed_kmh : 0.0;
+      const hdg = typeof packet.heading_deg === "number" ? packet.heading_deg : 180.0;
+      const brk = typeof packet.brake_pressure_psi === "number" ? packet.brake_pressure_psi : 0.0;
+      const pitch = typeof packet.pitch_deg === "number" ? packet.pitch_deg : 0.0;
+      const roll = typeof packet.roll_deg === "number" ? packet.roll_deg : 0.0;
+      const payload = typeof packet.payload_tons === "number" ? packet.payload_tons : 96.4;
+      const vis = typeof packet.visibility_m === "number" ? packet.visibility_m : 8.5;
 
-    // 1. Pi Camera Module 3 Wide AI Status
-    const camHazardEl = document.getElementById("camera-hazard-type");
-    if (camHazardEl) {
-      if (packet.collision_state === "CRITICAL") {
-        camHazardEl.className = "text-rose-400 font-bold animate-pulse";
-        camHazardEl.innerText = packet.active_hazard === "MINER_IN_FOG" ? "👷 MINE WORKER IN PATH" : "🚨 IMMEDIATE COLLISION HAZARD";
-      } else if (packet.collision_state === "ADVISORY") {
-        camHazardEl.className = "text-amber-300 font-bold";
-        camHazardEl.innerText = "⚠️ PROXIMITY ADVISORY (SLOW DOWN)";
+      fastSetText("hud-speed", spd.toFixed(1));
+      fastSetText("hud-heading", `${Math.round(hdg)}°`);
+      fastSetText("hud-gear", packet.gear || "D3");
+      fastSetText("hud-rpm", String(packet.rpm || "1650"));
+      fastSetText("hud-brake-psi", `${brk.toFixed(0)} PSI`);
+      fastSetText("hud-pitch", `${pitch > 0 ? "+" : ""}${pitch.toFixed(1)}°`);
+      fastSetText("hud-roll", `${roll > 0 ? "+" : ""}${roll.toFixed(1)}°`);
+      fastSetText("hud-payload", `${payload.toFixed(1)} T`);
+      fastSetText("hud-zone", packet.zone_name || "Deposit 14 Haul Ramp");
+      if (packet.gps) {
+        fastSetText("hud-gps", `${(packet.gps.lat || 18.7145).toFixed(5)} N, ${(packet.gps.lng || 81.2525).toFixed(5)} E (${packet.gps.altitude_m || 1220}m)`);
+      }
+      fastSetText("hud-visibility", `${vis.toFixed(1)}m`);
+      fastSetText("hud-mode-tag", packet.mode || "SIMULATION");
+
+      // 1. Pi Camera Module 3 Wide AI Status
+      const camHazardEl = document.getElementById("camera-hazard-type");
+      if (camHazardEl) {
+        if (packet.collision_state === "CRITICAL") {
+          camHazardEl.className = "text-rose-400 font-bold animate-pulse";
+          camHazardEl.innerText = packet.active_hazard === "MINER_IN_FOG" ? "👷 MINE WORKER IN PATH" : "🚨 IMMEDIATE COLLISION HAZARD";
+        } else if (packet.collision_state === "ADVISORY") {
+          camHazardEl.className = "text-amber-300 font-bold";
+          camHazardEl.innerText = "⚠️ PROXIMITY ADVISORY (SLOW DOWN)";
+        } else {
+          camHazardEl.className = "text-emerald-400 font-bold";
+          camHazardEl.innerText = "HAUL ROAD CLEAR";
+        }
+      }
+      const detCount = (packet.radar && packet.radar.targets ? packet.radar.targets.length : 0) + (packet.radar && packet.radar.distance_m < 80 ? 1 : 0);
+      fastSetText("camera-detections-badge", `${Math.max(1, detCount)} TARGET${detCount > 1 ? "S" : ""} DETECTED`);
+
+      // 2. Dual VL53L1X Laser ToF Sensors
+      if (packet.tof_laser) {
+        const leftM = typeof packet.tof_laser.left_m === "number" ? packet.tof_laser.left_m : 4.2;
+        const rightM = typeof packet.tof_laser.right_m === "number" ? packet.tof_laser.right_m : 4.1;
+        fastSetText("hud-tof-left", leftM.toFixed(2));
+        fastSetText("hud-tof-right", rightM.toFixed(2));
+        const tofBadge = document.getElementById("hud-tof-badge");
+        if (tofBadge) {
+          if (packet.tof_laser.berm_warning) {
+            tofBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
+            tofBadge.innerText = `⚠️ BERM DRIFT (${packet.tof_laser.warning_side || "ALERT"})`;
+          } else {
+            tofBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+            tofBadge.innerText = "BERM CLEAR";
+          }
+        }
+        const offset = (packet.berm_proximity && typeof packet.berm_proximity.lane_offset_m === "number") ? packet.berm_proximity.lane_offset_m : 0.0;
+        fastSetText("hud-berm-offset-status", offset !== 0.0 ? `DRIFT ${offset > 0 ? "+" : ""}${offset.toFixed(1)}m` : "CENTERED (0.0m)");
+
+        // Graphic card updates
+        fastSetText("tof-l-dist", `${leftM.toFixed(2)}m`);
+        fastSetText("tof-r-dist", `${rightM.toFixed(2)}m`);
+        fastSetText("tof-l-foot", leftM.toFixed(2));
+        fastSetText("tof-r-foot", rightM.toFixed(2));
+        const tofGraphicBadge = document.getElementById("tof-status-badge");
+        if (tofGraphicBadge) {
+          if (packet.tof_laser.berm_warning) {
+            tofGraphicBadge.className = "px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 text-[9px] font-bold animate-pulse";
+            tofGraphicBadge.innerText = `⚠️ BERM DRIFT (${packet.tof_laser.warning_side || "ALERT"})`;
+          } else {
+            tofGraphicBadge.className = "px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold";
+            tofGraphicBadge.innerText = "BERM CLEAR";
+          }
+        }
+        fastSetText("road-berm-left", `${leftM.toFixed(1)}m`);
+        fastSetText("road-berm-right", `${rightM.toFixed(1)}m`);
+      }
+
+      // 3. 77 GHz mmWave Radar Telemetry
+      if (packet.radar) {
+        const rDist = typeof packet.radar.distance_m === "number" ? packet.radar.distance_m : 999.0;
+        const rRelSpeed = typeof packet.radar.relative_speed_kmh === "number" ? packet.radar.relative_speed_kmh : 0.0;
+        const rAz = typeof packet.radar.azimuth_deg === "number" ? packet.radar.azimuth_deg : 0.0;
+        fastSetText("hud-radar-dist", rDist < 900 ? `${rDist.toFixed(1)} m` : "CLEAR (>50m)");
+        fastSetText("hud-radar-relspeed", `${rRelSpeed > 0 ? "+" : ""}${rRelSpeed.toFixed(1)} km/h`);
+        fastSetText("hud-radar-azimuth", `${rAz > 0 ? "+" : ""}${rAz.toFixed(1)}°`);
+      }
+
+      // 4. BMP280 Atmospheric Sensor
+      if (packet.atmosphere) {
+        const pPress = typeof packet.atmosphere.pressure_hpa === "number" ? packet.atmosphere.pressure_hpa : 1013.2;
+        const pAlt = typeof packet.atmosphere.altitude_m === "number" ? packet.atmosphere.altitude_m : 1220.0;
+        const pTemp = typeof packet.atmosphere.temp_celsius === "number" ? packet.atmosphere.temp_celsius : 24.5;
+        fastSetText("hud-bmp-pressure", `${pPress.toFixed(1)} hPa`);
+        fastSetText("hud-bmp-alt", `${Math.round(pAlt)} m`);
+        fastSetText("hud-bmp-temp", `${pTemp.toFixed(1)} °C`);
       } else {
-        camHazardEl.className = "text-emerald-400 font-bold";
-        camHazardEl.innerText = "HAUL ROAD CLEAR";
+        fastSetText("hud-bmp-pressure", "1013.2 hPa");
+        fastSetText("hud-bmp-alt", `${Math.round(packet.gps ? packet.gps.altitude_m : 1220)} m`);
+        fastSetText("hud-bmp-temp", "28.4 °C");
       }
-    }
-    const detCount = (packet.radar && packet.radar.targets ? packet.radar.targets.length : 0) + (packet.radar && packet.radar.distance_m < 80 ? 1 : 0);
-    fastSetText("camera-detections-badge", `${Math.max(1, detCount)} TARGET${detCount > 1 ? "S" : ""} DETECTED`);
 
-    // 2. Dual VL53L1X Laser ToF Sensors
-    if (packet.tof_laser) {
-      fastSetText("hud-tof-left", packet.tof_laser.left_m.toFixed(2));
-      fastSetText("hud-tof-right", packet.tof_laser.right_m.toFixed(2));
-      const tofBadge = document.getElementById("hud-tof-badge");
-      if (tofBadge) {
-        if (packet.tof_laser.berm_warning) {
-          tofBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
-          tofBadge.innerText = `⚠️ BERM DRIFT (${packet.tof_laser.warning_side || "ALERT"})`;
-        } else {
-          tofBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
-          tofBadge.innerText = "BERM CLEAR";
+      // 5. MPU6050 6-Axis IMU (Inclinometer & Rollover)
+      fastSetText("hud-imu-pitch", `${pitch > 0 ? "+" : ""}${pitch.toFixed(1)}°`);
+      fastSetText("hud-imu-roll", `${roll > 0 ? "+" : ""}${roll.toFixed(1)}°`);
+      if (packet.imu) {
+        const grade = typeof packet.imu.grade_percent === "number" ? packet.imu.grade_percent : 0.0;
+        const gf = typeof packet.imu.g_force_z === "number" ? packet.imu.g_force_z : 1.0;
+        fastSetText("hud-imu-grade", `SLOPE: ${grade > 0 ? "+" : ""}${grade.toFixed(1)}%`);
+        fastSetText("hud-imu-grade-val", `${grade > 0 ? "+" : ""}${grade.toFixed(1)}%`);
+        fastSetText("hud-imu-gforce", `${gf.toFixed(2)} G`);
+        const imuBadge = document.getElementById("hud-imu-status-badge");
+        if (imuBadge) {
+          if (packet.imu.impact_detected || Math.abs(roll) > 12) {
+            imuBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
+            imuBadge.innerText = "ROLLOVER RISK";
+          } else {
+            imuBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+            imuBadge.innerText = "STABLE";
+          }
         }
       }
-      const offset = packet.berm_proximity ? packet.berm_proximity.lane_offset_m : 0.0;
-      fastSetText("hud-berm-offset-status", offset !== 0.0 ? `DRIFT ${offset > 0 ? "+" : ""}${offset.toFixed(1)}m` : "CENTERED (0.0m)");
 
-      // Graphic card updates
-      fastSetText("tof-l-dist", `${packet.tof_laser.left_m.toFixed(2)}m`);
-      fastSetText("tof-r-dist", `${packet.tof_laser.right_m.toFixed(2)}m`);
-      fastSetText("tof-l-foot", packet.tof_laser.left_m.toFixed(2));
-      fastSetText("tof-r-foot", packet.tof_laser.right_m.toFixed(2));
-      const tofGraphicBadge = document.getElementById("tof-status-badge");
-      if (tofGraphicBadge) {
-        if (packet.tof_laser.berm_warning) {
-          tofGraphicBadge.className = "px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 text-[9px] font-bold animate-pulse";
-          tofGraphicBadge.innerText = `⚠️ BERM DRIFT (${packet.tof_laser.warning_side || "ALERT"})`;
-        } else {
-          tofGraphicBadge.className = "px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold";
-          tofGraphicBadge.innerText = "BERM CLEAR";
+      // 6. Optical Wheel Encoder (Ground Odometry)
+      if (packet.encoder) {
+        const encSpd = typeof packet.encoder.speed_kmh === "number" ? packet.encoder.speed_kmh : 0.0;
+        fastSetText("hud-encoder-rpm", String(packet.encoder.rpm || 0));
+        fastSetText("hud-encoder-pulses", `${packet.encoder.pulses_per_sec || 0} p/s`);
+        fastSetText("hud-encoder-rpm-val", `${packet.encoder.rpm || 0} RPM`);
+        fastSetText("hud-encoder-pulses-val", `${packet.encoder.pulses_per_sec || 0} p/s`);
+        fastSetText("hud-encoder-speed-val", `${encSpd.toFixed(1)} km/h`);
+        fastSetText("hud-encoder-trip", `${Math.round(packet.encoder.trip_meters || 0)} m`);
+      } else {
+        fastSetText("hud-encoder-rpm", String(packet.rpm || 1650));
+        fastSetText("hud-encoder-pulses", `${Math.round((packet.rpm || 1650) / 3)} p/s`);
+        fastSetText("hud-encoder-rpm-val", `${packet.rpm || 1650} RPM`);
+        fastSetText("hud-encoder-pulses-val", `${Math.round((packet.rpm || 1650) / 3)} p/s`);
+        fastSetText("hud-encoder-speed-val", `${spd.toFixed(1)} km/h`);
+        fastSetText("hud-encoder-trip", "1428 m");
+      }
+
+      // 7. NEO-M8N GPS Module
+      if (packet.gps) {
+        fastSetText("hud-gps-sats", `${packet.gps.satellites || 14} / 18`);
+        fastSetText("hud-gps-hdop", `${(typeof packet.gps.hdop === "number" ? packet.gps.hdop : 0.82).toFixed(2)} m`);
+        fastSetText("hud-gps-coords", `${(packet.gps.lat || 18.7145).toFixed(4)}, ${(packet.gps.lng || 81.2525).toFixed(4)}`);
+      }
+
+      // 8. V2V Communication Link (Wi-Fi / LoRa)
+      if (packet.v2v) {
+        const v2vDist = typeof packet.v2v.distance_to_peer_m === "number" ? packet.v2v.distance_to_peer_m : 18.5;
+        const v2vRel = typeof packet.v2v.relative_speed_kmh === "number" ? packet.v2v.relative_speed_kmh : 0.0;
+        fastSetText("hud-v2v-peer", packet.v2v.peer_car_id ? packet.v2v.peer_car_id.split(" ")[0] : "HEMM-DUMP-02");
+        fastSetText("hud-v2v-dist", `${v2vDist.toFixed(1)} m`);
+        fastSetText("hud-v2v-rel-speed", `${v2vRel > 0 ? "+" : ""}${v2vRel.toFixed(1)} km/h`);
+        fastSetText("hud-v2v-rssi", `${packet.v2v.rssi_dbm || -62} dBm`);
+
+        const v2vTag = document.getElementById("hud-v2v-alert-tag");
+        if (v2vTag) {
+          if (packet.v2v.auto_stop_actuated) {
+            v2vTag.className = "text-rose-400 font-bold animate-pulse";
+            v2vTag.innerText = "🛑 AUTO-STOP ENGAGED";
+          } else if (packet.v2v.v2v_alert) {
+            v2vTag.className = "text-amber-300 font-bold";
+            v2vTag.innerText = "⚠️ PROXIMITY WARN";
+          } else {
+            v2vTag.className = "text-emerald-400 font-bold";
+            v2vTag.innerText = "LINK SAFE";
+          }
         }
       }
-      fastSetText("road-berm-left", `${packet.tof_laser.left_m.toFixed(1)}m`);
-      fastSetText("road-berm-right", `${packet.tof_laser.right_m.toFixed(1)}m`);
-    }
 
-    // 3. 77 GHz mmWave Radar Telemetry
-    if (packet.radar) {
-      fastSetText("hud-radar-dist", packet.radar.distance_m < 900 ? `${packet.radar.distance_m.toFixed(1)} m` : "CLEAR (>50m)");
-      fastSetText("hud-radar-relspeed", `${packet.radar.relative_speed_kmh > 0 ? "+" : ""}${packet.radar.relative_speed_kmh.toFixed(1)} km/h`);
-      fastSetText("hud-radar-azimuth", `${packet.radar.azimuth_deg > 0 ? "+" : ""}${packet.radar.azimuth_deg.toFixed(1)}°`);
-    }
-
-    // 4. BMP280 Atmospheric Sensor
-    if (packet.atmosphere) {
-      fastSetText("hud-bmp-pressure", `${packet.atmosphere.pressure_hpa.toFixed(1)} hPa`);
-      fastSetText("hud-bmp-alt", `${Math.round(packet.atmosphere.altitude_m)} m`);
-      fastSetText("hud-bmp-temp", `${packet.atmosphere.temp_celsius.toFixed(1)} °C`);
-    } else {
-      fastSetText("hud-bmp-pressure", "1013.2 hPa");
-      fastSetText("hud-bmp-alt", `${Math.round(packet.gps ? packet.gps.altitude_m : 1220)} m`);
-      fastSetText("hud-bmp-temp", "28.4 °C");
-    }
-
-    // 5. MPU6050 6-Axis IMU (Inclinometer & Rollover)
-    fastSetText("hud-imu-pitch", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}°`);
-    fastSetText("hud-imu-roll", `${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}°`);
-    if (packet.imu) {
-      fastSetText("hud-imu-grade", `SLOPE: ${packet.imu.grade_percent > 0 ? "+" : ""}${packet.imu.grade_percent.toFixed(1)}%`);
-      fastSetText("hud-imu-grade-val", `${packet.imu.grade_percent > 0 ? "+" : ""}${packet.imu.grade_percent.toFixed(1)}%`);
-      fastSetText("hud-imu-gforce", `${packet.imu.g_force_z.toFixed(2)} G`);
-      const imuBadge = document.getElementById("hud-imu-status-badge");
-      if (imuBadge) {
-        if (packet.imu.impact_detected || Math.abs(packet.roll_deg) > 12) {
-          imuBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
-          imuBadge.innerText = "ROLLOVER RISK";
-        } else {
-          imuBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
-          imuBadge.innerText = "STABLE";
-        }
+      // 9. Raspberry Pi 4B Edge Data Fusion
+      if (packet.rpi_edge) {
+        const latMs = typeof packet.rpi_edge.fusion_latency_ms === "number" ? packet.rpi_edge.fusion_latency_ms : 11.2;
+        fastSetText("hud-fusion-lat", `${latMs.toFixed(1)} ms`);
       }
-    }
 
-    // 6. Optical Wheel Encoder (Ground Odometry)
-    if (packet.encoder) {
-      fastSetText("hud-encoder-rpm", String(packet.encoder.rpm));
-      fastSetText("hud-encoder-pulses", `${packet.encoder.pulses_per_sec} p/s`);
-      fastSetText("hud-encoder-rpm-val", `${packet.encoder.rpm} RPM`);
-      fastSetText("hud-encoder-pulses-val", `${packet.encoder.pulses_per_sec} p/s`);
-      fastSetText("hud-encoder-speed-val", `${packet.encoder.speed_kmh.toFixed(1)} km/h`);
-      fastSetText("hud-encoder-trip", `${Math.round(packet.encoder.trip_meters)} m`);
-    } else {
-      fastSetText("hud-encoder-rpm", String(packet.rpm || 1650));
-      fastSetText("hud-encoder-pulses", `${Math.round((packet.rpm || 1650) / 3)} p/s`);
-      fastSetText("hud-encoder-rpm-val", `${packet.rpm || 1650} RPM`);
-      fastSetText("hud-encoder-pulses-val", `${Math.round((packet.rpm || 1650) / 3)} p/s`);
-      fastSetText("hud-encoder-speed-val", `${packet.speed_kmh.toFixed(1)} km/h`);
-      fastSetText("hud-encoder-trip", "1428 m");
-    }
-
-    // 7. NEO-M8N GPS Module
-    if (packet.gps) {
-      fastSetText("hud-gps-sats", `${packet.gps.satellites || 14} / 18`);
-      fastSetText("hud-gps-hdop", `${(packet.gps.hdop || 0.82).toFixed(2)} m`);
-      fastSetText("hud-gps-coords", `${packet.gps.lat.toFixed(4)}, ${packet.gps.lng.toFixed(4)}`);
-    }
-
-    // 8. V2V Communication Link (Wi-Fi / LoRa)
-    if (packet.v2v) {
-      fastSetText("hud-v2v-peer", packet.v2v.peer_car_id ? packet.v2v.peer_car_id.split(" ")[0] : "HEMM-DUMP-02");
-      fastSetText("hud-v2v-dist", `${packet.v2v.distance_to_peer_m.toFixed(1)} m`);
-      fastSetText("hud-v2v-rel-speed", `${packet.v2v.relative_speed_kmh > 0 ? "+" : ""}${packet.v2v.relative_speed_kmh.toFixed(1)} km/h`);
-      fastSetText("hud-v2v-rssi", `${packet.v2v.rssi_dbm} dBm`);
-
-      const v2vTag = document.getElementById("hud-v2v-alert-tag");
-      if (v2vTag) {
-        if (packet.v2v.auto_stop_actuated) {
-          v2vTag.className = "text-rose-400 font-bold animate-pulse";
-          v2vTag.innerText = "🛑 AUTO-STOP ENGAGED";
-        } else if (packet.v2v.v2v_alert) {
-          v2vTag.className = "text-amber-300 font-bold";
-          v2vTag.innerText = "⚠️ PROXIMITY WARN";
-        } else {
-          v2vTag.className = "text-emerald-400 font-bold";
-          v2vTag.innerText = "LINK SAFE";
+      // 10. ESP32 Motor Control & Safety Actuation Node
+      if (packet.motor_control) {
+        const espBadge = document.getElementById("hud-esp32-status");
+        if (espBadge) {
+          if (packet.motor_control.emergency_stop_actuated) {
+            espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
+            espBadge.innerText = "MOTOR: E-STOPPED";
+          } else if (packet.motor_control.status === "THROTTLE_CUT") {
+            espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-500 font-bold";
+            espBadge.innerText = "MOTOR: THROTTLE CUT";
+          } else {
+            espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold";
+            espBadge.innerText = "MOTOR: NORMAL";
+          }
         }
+        fastSetText("hud-pwm-duty", `PWM ${packet.motor_control.motor_pwm_duty || 0}/255`);
+        fastSetText("hud-buzzer-state", packet.motor_control.buzzer_active ? "ALARM" : "OFF");
       }
-    }
 
-    // 9. Raspberry Pi 4B Edge Data Fusion
-    if (packet.rpi_edge) {
-      fastSetText("hud-fusion-lat", `${packet.rpi_edge.fusion_latency_ms.toFixed(1)} ms`);
-    }
-
-    // 10. ESP32 Motor Control & Safety Actuation Node
-    if (packet.motor_control) {
-      const espBadge = document.getElementById("hud-esp32-status");
-      if (espBadge) {
-        if (packet.motor_control.emergency_stop_actuated) {
-          espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
-          espBadge.innerText = "MOTOR: E-STOPPED";
-        } else if (packet.motor_control.status === "THROTTLE_CUT") {
-          espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-500 font-bold";
-          espBadge.innerText = "MOTOR: THROTTLE CUT";
-        } else {
-          espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold";
-          espBadge.innerText = "MOTOR: NORMAL";
-        }
+      // 11. Mirror to Central Dispatch Active Demo Telemetry Ribbon
+      if (packet.collision_state === "CRITICAL") {
+        fastSetText("disp-cam-status", packet.active_hazard === "MINER_IN_FOG" ? "👷 WORKER DETECTED" : "🚨 HAZARD IN PATH");
+      } else if (packet.collision_state === "ADVISORY") {
+        fastSetText("disp-cam-status", "⚠️ PROXIMITY WARN");
+      } else {
+        fastSetText("disp-cam-status", "HAUL ROAD CLEAR");
       }
-      fastSetText("hud-pwm-duty", `PWM ${packet.motor_control.motor_pwm_duty}/255`);
-      fastSetText("hud-buzzer-state", packet.motor_control.buzzer_active ? "ALARM" : "OFF");
+
+      if (packet.tof_laser) {
+        const leftM = typeof packet.tof_laser.left_m === "number" ? packet.tof_laser.left_m : 4.2;
+        const rightM = typeof packet.tof_laser.right_m === "number" ? packet.tof_laser.right_m : 4.1;
+        fastSetText("disp-tof-status", `L: ${leftM.toFixed(1)}m / R: ${rightM.toFixed(1)}m`);
+      }
+      fastSetText("disp-imu-status", `${pitch > 0 ? "+" : ""}${pitch.toFixed(1)}° P / ${roll > 0 ? "+" : ""}${roll.toFixed(1)}° R`);
+
+      // 12. Active Payload & Chassis Indicators
+      fastSetText("hud-payload-tons", `${payload.toFixed(1)} T`);
+      const payloadBar = document.getElementById("hud-payload-bar");
+      if (payloadBar) payloadBar.style.width = `${Math.min(100, Math.round((payload / 120) * 100))}%`;
+
+      // 13. AR Lane Visibility & Pitch/Roll Overlays
+      fastSetText("ar-vis-dist", `${vis.toFixed(1)}m`);
+      fastSetText("imu-pitch-val", `${pitch > 0 ? "+" : ""}${pitch.toFixed(1)}°`);
+      fastSetText("imu-roll-val", `${roll > 0 ? "+" : ""}${roll.toFixed(1)}°`);
+      if (packet.imu) {
+        const grade = typeof packet.imu.grade_percent === "number" ? packet.imu.grade_percent : 0.0;
+        fastSetText("imu-grade-val", `${grade > 0 ? "+" : ""}${grade.toFixed(1)}% GRADE`);
+      } else {
+        fastSetText("imu-grade-val", "-2.8% GRADE");
+      }
+
+      // 14. Environmental Info Cards
+      if (packet.atmosphere) {
+        fastSetText("env-temp", `${Math.round(typeof packet.atmosphere.temp_celsius === "number" ? packet.atmosphere.temp_celsius : 24)}°C`);
+      } else {
+        fastSetText("env-temp", "24°C");
+      }
+      fastSetText("env-dust", (packet.fog_density || 0) > 0.6 ? "HIGH" : ((packet.fog_density || 0) > 0.3 ? "MODERATE" : "LOW"));
+      fastSetText("env-visibility", `${vis.toFixed(1)}m`);
+
+      // 15. Systems Status
+      const setSys = (id, val, cls) => {
+        const el = document.getElementById(id);
+        if (el) { el.innerText = val; el.className = cls; }
+      };
+      setSys("sys-engine", "OK", "text-emerald-400 font-bold");
+      setSys("sys-hydraulics", "OK", "text-emerald-400 font-bold");
+      setSys("sys-tires", "OK", "text-emerald-400 font-bold");
+      setSys("sys-drive", "OK", "text-emerald-400 font-bold");
+
+      // 16. Tire Pressures (Standard Operational PSI for Mining Dump Truck)
+      fastSetText("tire-fl", "102 psi");
+      fastSetText("tire-fr", "104 psi");
+      fastSetText("tire-rl", "108 psi");
+      fastSetText("tire-rr", "110 psi");
+
+      // 17. Radar Scope Bearing & Active Tag
+      fastSetText("radar-active-status", "RADAR ACTIVE");
+      fastSetText("radar-bearing-val", `${Math.round(hdg || 280)}°`);
+
+      // 18. AI Perception Status Tag
+      fastSetText("ai-perception-status", "AI PERCEPTION ACTIVE");
+      fastSetText("ai-haul-road-status", packet.collision_state === "CLEAR" ? "HAUL ROAD CLEAR" : (packet.collision_state === "CRITICAL" ? "CRITICAL HAZARD" : "ADVISORY"));
+    } catch (clusterErr) {
+      console.error("[updateInstrumentCluster Error]:", clusterErr);
     }
-
-    // 11. Mirror to Central Dispatch Active Demo Telemetry Ribbon
-    if (packet.collision_state === "CRITICAL") {
-      fastSetText("disp-cam-status", packet.active_hazard === "MINER_IN_FOG" ? "👷 WORKER DETECTED" : "🚨 HAZARD IN PATH");
-    } else if (packet.collision_state === "ADVISORY") {
-      fastSetText("disp-cam-status", "⚠️ PROXIMITY WARN");
-    } else {
-      fastSetText("disp-cam-status", "HAUL ROAD CLEAR");
-    }
-
-    if (packet.tof_laser) {
-      fastSetText("disp-tof-status", `L: ${packet.tof_laser.left_m.toFixed(1)}m / R: ${packet.tof_laser.right_m.toFixed(1)}m`);
-    }
-    fastSetText("disp-imu-status", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}° P / ${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}° R`);
-
-    // 12. Active Payload & Chassis Indicators
-    fastSetText("hud-payload-tons", `${(packet.payload_tons || 96.4).toFixed(1)} T`);
-    const payloadBar = document.getElementById("hud-payload-bar");
-    if (payloadBar) payloadBar.style.width = `${Math.min(100, Math.round(((packet.payload_tons || 96.4) / 120) * 100))}%`;
-
-    // 13. AR Lane Visibility & Pitch/Roll Overlays
-    fastSetText("ar-vis-dist", `${(packet.visibility_m || 11.3).toFixed(1)}m`);
-    fastSetText("imu-pitch-val", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}°`);
-    fastSetText("imu-roll-val", `${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}°`);
-    if (packet.imu) {
-      fastSetText("imu-grade-val", `${packet.imu.grade_percent > 0 ? "+" : ""}${packet.imu.grade_percent.toFixed(1)}% GRADE`);
-    } else {
-      fastSetText("imu-grade-val", "-2.8% GRADE");
-    }
-
-    // 14. Environmental Info Cards
-    if (packet.atmosphere) {
-      fastSetText("env-temp", `${Math.round(packet.atmosphere.temp_celsius)}°C`);
-    } else {
-      fastSetText("env-temp", "24°C");
-    }
-    fastSetText("env-dust", (packet.fog_density || 0) > 0.6 ? "HIGH" : ((packet.fog_density || 0) > 0.3 ? "MODERATE" : "LOW"));
-    fastSetText("env-visibility", `${(packet.visibility_m || 8.5).toFixed(1)}m`);
-
-    // 15. Systems Status
-    const setSys = (id, val, cls) => {
-      const el = document.getElementById(id);
-      if (el) { el.innerText = val; el.className = cls; }
-    };
-    setSys("sys-engine", "OK", "text-emerald-400 font-bold");
-    setSys("sys-hydraulics", "OK", "text-emerald-400 font-bold");
-    setSys("sys-tires", "OK", "text-emerald-400 font-bold");
-    setSys("sys-drive", "OK", "text-emerald-400 font-bold");
-
-    // 16. Tire Pressures (Standard Operational PSI for Mining Dump Truck)
-    fastSetText("tire-fl", "102 psi");
-    fastSetText("tire-fr", "104 psi");
-    fastSetText("tire-rl", "108 psi");
-    fastSetText("tire-rr", "110 psi");
-
-    // 17. Radar Scope Bearing & Active Tag
-    fastSetText("radar-active-status", "RADAR ACTIVE");
-    fastSetText("radar-bearing-val", `${Math.round(packet.heading_deg || 280)}°`);
-
-    // 18. AI Perception Status Tag
-    fastSetText("ai-perception-status", "AI PERCEPTION ACTIVE");
-    fastSetText("ai-haul-road-status", packet.collision_state === "CLEAR" ? "HAUL ROAD CLEAR" : (packet.collision_state === "CRITICAL" ? "CRITICAL HAZARD" : "ADVISORY"));
   }
 
   async triggerV2VEStop() {
