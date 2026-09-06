@@ -197,7 +197,13 @@ class HEMMSafetyApp {
     window.addEventListener("keydown", unlockAudio, { once: true });
     window.addEventListener("touchstart", unlockAudio, { once: true });
 
-    // View Switcher Buttons
+    // View Switcher Buttons (Sidebar & Dock)
+    document.querySelectorAll(".btn-role-nav").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const view = btn.getAttribute("data-view") || (btn.id.includes("hud") ? "HUD" : (btn.id.includes("dispatch") ? "DISPATCH" : "DUAL"));
+        this.switchView(view);
+      });
+    });
     document.getElementById("btn-view-hud")?.addEventListener("click", () => this.switchView("HUD"));
     document.getElementById("btn-view-dispatch")?.addEventListener("click", () => this.switchView("DISPATCH"));
     document.getElementById("btn-view-dual")?.addEventListener("click", () => this.switchView("DUAL"));
@@ -364,17 +370,15 @@ class HEMMSafetyApp {
     const hudContainer = document.getElementById("operator-hud-view");
     const dispatchContainer = document.getElementById("dispatch-twin-view");
 
-    // Reset all role nav buttons
+    // Reset and highlight role nav buttons with Glacier Cyan styling
     document.querySelectorAll(".btn-role-nav").forEach(b => {
-      b.classList.remove("bg-cyan-600/20", "text-white", "border-cyan-500/60", "shadow-md", "shadow-cyan-500/10");
-      b.classList.add("border-slate-800/80", "bg-slate-900/40", "text-slate-300");
+      const v = b.getAttribute("data-view") || (b.id.includes("hud") ? "HUD" : (b.id.includes("dispatch") ? "DISPATCH" : "DUAL"));
+      if (v === viewName) {
+        b.className = "btn-role-nav w-full text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 bg-cyan-600/25 text-white border-cyan-400 shadow-lg shadow-cyan-500/20 cursor-pointer";
+      } else {
+        b.className = "btn-role-nav w-full text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 border-cyan-950 hover:border-cyan-500/50 bg-[#051020]/60 hover:bg-[#07162c] text-slate-300 shadow-sm cursor-pointer";
+      }
     });
-
-    const activeBtn = document.getElementById(`btn-view-${viewName.toLowerCase()}`);
-    if (activeBtn) {
-      activeBtn.classList.remove("border-slate-800/80", "bg-slate-900/40", "text-slate-300");
-      activeBtn.classList.add("bg-cyan-600/20", "text-white", "border-cyan-500/60", "shadow-md", "shadow-cyan-500/10");
-    }
 
     if (viewName === "HUD") {
       hudContainer?.classList.remove("hidden");
@@ -1049,18 +1053,26 @@ class HEMMSafetyApp {
 
     const btnModeDemo = document.getElementById("btn-mode-demo");
     const btnModeHw = document.getElementById("btn-mode-hardware");
+    const btnEnter = document.getElementById("btn-enter-training");
+    const btnExit = document.getElementById("btn-exit-training");
     const demoBar = document.getElementById("demo-mode-bar");
     const hwBar = document.getElementById("hardware-mode-bar");
     const deckHw = document.getElementById("deck-hardware-status");
     const deckDemo = document.getElementById("deck-demo-harness");
 
     if (mode === "DEMO_TRAINING") {
-      // Highlight Demo button
+      // Highlight Demo buttons (Header & Sidebar)
       if (btnModeDemo) {
         btnModeDemo.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md shadow-amber-500/30 flex items-center gap-1 cursor-pointer";
       }
       if (btnModeHw) {
         btnModeHw.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer";
+      }
+      if (btnEnter) {
+        btnEnter.className = "flex-1 px-2 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 rounded-lg text-[11px] font-mono font-bold flex items-center justify-center gap-1 shadow-md shadow-amber-500/20 transition-all cursor-pointer";
+      }
+      if (btnExit) {
+        btnExit.className = "flex-1 px-2 py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/60 rounded-lg text-[11px] font-mono text-cyan-300 font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer";
       }
 
       demoBar?.classList.remove("hidden");
@@ -1080,12 +1092,18 @@ class HEMMSafetyApp {
         body: JSON.stringify({ mode: "SIMULATION" })
       }).then(() => this.fetchTelemetryHttp()).catch(() => {});
     } else {
-      // HARDWARE MODE
+      // HARDWARE MODE (Header & Sidebar)
       if (btnModeDemo) {
         btnModeDemo.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer";
       }
       if (btnModeHw) {
         btnModeHw.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-cyan-600 text-white shadow-md shadow-cyan-500/30 flex items-center gap-1 cursor-pointer";
+      }
+      if (btnEnter) {
+        btnEnter.className = "flex-1 px-2 py-2 bg-amber-950 hover:bg-amber-900 border border-amber-500/50 text-amber-300 rounded-lg text-[11px] font-mono font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer";
+      }
+      if (btnExit) {
+        btnExit.className = "flex-1 px-2 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[11px] font-mono font-bold flex items-center justify-center gap-1 shadow-md shadow-cyan-500/30 transition-all cursor-pointer";
       }
 
       demoBar?.classList.add("hidden");
@@ -1103,6 +1121,23 @@ class HEMMSafetyApp {
     this.updateCabUnitOptions();
     if (this.latestPacket) {
       this.consumePacket(this.latestPacket);
+    }
+  }
+
+  openNotesModal() {
+    const modal = document.getElementById("notes-modal");
+    if (modal) {
+      modal.style.display = "flex";
+      modal.classList.remove("hidden");
+    }
+    this.fetchNotes();
+  }
+
+  closeNotesModal() {
+    const modal = document.getElementById("notes-modal");
+    if (modal) {
+      modal.style.display = "none";
+      modal.classList.add("hidden");
     }
   }
 
