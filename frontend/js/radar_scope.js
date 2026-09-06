@@ -57,18 +57,21 @@ class RadarScopeRenderer {
 
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fillStyle = "#09101c";
+    ctx.fillStyle = "#030a16";
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "#1e3a5f";
+    ctx.strokeStyle = "#00d2ff";
+    ctx.shadowColor = "#00d2ff";
+    ctx.shadowBlur = 8;
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     // 2. Draw Range Rings (5m, 10m, 20m, 50m)
     const ranges = [
-      { m: 5, label: "5m", color: "rgba(239, 68, 68, 0.4)", stroke: [3, 3] },
-      { m: 10, label: "10m", color: "rgba(245, 158, 11, 0.4)", stroke: [4, 4] },
-      { m: 20, label: "20m", color: "rgba(6, 182, 212, 0.35)", stroke: [] },
-      { m: 50, label: "50m", color: "rgba(6, 182, 212, 0.2)", stroke: [] },
+      { m: 5, label: "5m", color: "rgba(0, 210, 255, 0.4)", stroke: [3, 3] },
+      { m: 10, label: "10m", color: "rgba(0, 210, 255, 0.5)", stroke: [4, 4] },
+      { m: 20, label: "20m", color: "rgba(0, 210, 255, 0.6)", stroke: [] },
+      { m: 50, label: "50m", color: "rgba(0, 210, 255, 0.4)", stroke: [] },
     ];
 
     ranges.forEach(r => {
