@@ -44,6 +44,9 @@ class HEMMSafetyApp {
     this.toastDismissTimer = null;
 
     // Component Renderers
+    this.cameraRenderer = null;
+    this.tofRenderer = null;
+    this.inclinometerRenderer = null;
     this.radarRenderer = null;
     this.thermalRenderer = null;
     this.arLaneRenderer = null;
@@ -94,10 +97,14 @@ class HEMMSafetyApp {
 
     this.updateCabUnitOptions();
 
-    // Initialize Renderers Safely
-    try { this.radarRenderer = new RadarScopeRenderer("radar-canvas"); } catch (e) { console.error("Radar init error:", e); }
-    try { this.thermalRenderer = new ThermalVisionRenderer("thermal-canvas"); } catch (e) { console.error("Thermal init error:", e); }
-    try { this.arLaneRenderer = new ARLaneHUDRenderer("ar-lane-canvas"); } catch (e) { console.error("AR Lane init error:", e); }
+    // Initialize Sensor Suite Renderers Safely
+    try { this.cameraRenderer = new CameraVisionRenderer("camera-canvas"); } catch (e) { console.error("Camera init error:", e); }
+    try { this.tofRenderer = new LaserToFRenderer("tof-canvas"); } catch (e) { console.error("ToF init error:", e); }
+    try { this.inclinometerRenderer = new InclinometerGaugeRenderer("inclinometer-canvas"); } catch (e) { console.error("IMU init error:", e); }
+    try { this.radarRenderer = new RadarScopeRenderer("radar-canvas"); } catch (e) {}
+    try { this.thermalRenderer = new ThermalVisionRenderer("thermal-canvas"); } catch (e) {}
+    try { this.arLaneRenderer = new ARLaneHUDRenderer("ar-lane-canvas"); } catch (e) {}
+    try { this.speedometerRenderer = new GlacierSpeedometerRenderer("speedometer-gauge-canvas", "speedometer-wave-canvas"); } catch (e) {}
     try {
       this.dispatchMap = new DispatchMapRenderer("dispatch-map");
       if (this.dispatchMap) this.dispatchMap.selectedVehicle = this.activeVehicleId;
@@ -150,6 +157,11 @@ class HEMMSafetyApp {
 
   renderInitialState() {
     try {
+      const sample = { fog_density: 0.6, collision_state: "CLEAR", active_hazard: "NONE", radar: { distance_m: 18.5, targets: [] }, tof_laser: { left_m: 4.2, right_m: 4.1 }, pitch_deg: -2.8, roll_deg: 0.5 };
+      this.cameraRenderer?.render(sample);
+      this.tofRenderer?.render(sample);
+      this.inclinometerRenderer?.render(sample);
+
       const baselineMatrix = [];
       for (let r = 0; r < 24; r++) {
         const row = [];
@@ -186,6 +198,9 @@ class HEMMSafetyApp {
     document.getElementById("btn-view-hud")?.addEventListener("click", () => this.switchView("HUD"));
     document.getElementById("btn-view-dispatch")?.addEventListener("click", () => this.switchView("DISPATCH"));
     document.getElementById("btn-view-dual")?.addEventListener("click", () => this.switchView("DUAL"));
+
+    // ESP32 Emergency Stop Test Trigger Button
+    document.getElementById("btn-trigger-v2v-estop")?.addEventListener("click", () => this.triggerV2VEStop());
 
     // Audio Mute Toggle
     const btnMute = document.getElementById("btn-audio-mute");
@@ -376,11 +391,15 @@ class HEMMSafetyApp {
       }, 100);
     }
 
-    // Trigger canvas resize
+    // Trigger canvas resize across all perception renderers
     setTimeout(() => {
+      this.cameraRenderer?.resize();
+      this.tofRenderer?.resize();
+      this.inclinometerRenderer?.resize();
       this.radarRenderer?.resize();
       this.thermalRenderer?.resize();
       this.arLaneRenderer?.resize();
+      this.speedometerRenderer?.resize();
     }, 100);
   }
 
@@ -446,22 +465,34 @@ class HEMMSafetyApp {
   startRenderLoop() {
     let lastRenderTime = 0;
     const frame = (timestamp) => {
+      const activeP = (this.latestPacket && this.latestPacket.all_vehicles_telemetry && this.latestPacket.all_vehicles_telemetry[this.activeVehicleId]) 
+        ? this.latestPacket.all_vehicles_telemetry[this.activeVehicleId] 
+        : this.latestPacket;
+
       if (this.hasNewPacket && this.latestPacket) {
         this.consumePacket(this.latestPacket);
         this.hasNewPacket = false;
 
         if (this.currentView === "HUD" || this.currentView === "DUAL") {
-          this.radarRenderer?.render();
-          this.thermalRenderer?.render();
-          this.arLaneRenderer?.render();
+          try { this.cameraRenderer?.render(activeP); } catch (e) { console.error("Cam render err:", e); }
+          try { this.tofRenderer?.render(activeP); } catch (e) { console.error("ToF render err:", e); }
+          try { this.inclinometerRenderer?.render(activeP); } catch (e) { console.error("IMU render err:", e); }
+          try { this.radarRenderer?.render(); } catch (e) {}
+          try { this.thermalRenderer?.render(); } catch (e) {}
+          try { this.arLaneRenderer?.render(); } catch (e) {}
+          try { this.speedometerRenderer?.render(); } catch (e) {}
         }
       } else if (timestamp - lastRenderTime > 100) {
         // Idle heartbeat refresh (10 FPS)
         lastRenderTime = timestamp;
         if (this.currentView === "HUD" || this.currentView === "DUAL") {
-          this.radarRenderer?.render();
-          this.thermalRenderer?.render();
-          this.arLaneRenderer?.render();
+          try { this.cameraRenderer?.render(activeP); } catch (e) { console.error("Cam render err:", e); }
+          try { this.tofRenderer?.render(activeP); } catch (e) { console.error("ToF render err:", e); }
+          try { this.inclinometerRenderer?.render(activeP); } catch (e) { console.error("IMU render err:", e); }
+          try { this.radarRenderer?.render(); } catch (e) {}
+          try { this.thermalRenderer?.render(); } catch (e) {}
+          try { this.arLaneRenderer?.render(); } catch (e) {}
+          try { this.speedometerRenderer?.render(); } catch (e) {}
         }
       }
 
@@ -503,14 +534,14 @@ class HEMMSafetyApp {
         activePacket.collision_state,
         activePacket.radar
       );
+
+      this.speedometerRenderer?.update(activePacket);
     }
 
-    // 3. Dispatch Map update
-    if (this.currentView === "DISPATCH" || this.currentView === "DUAL") {
-      const isHw = (this.appMode === "HARDWARE");
-      const hasHwData = (this.packetsIngestedCount > 0);
-      this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
-    }
+    // 3. Dispatch Map update (Google Maps Satellite Live Fleet & Demo Vehicle)
+    const isHw = (this.appMode === "HARDWARE");
+    const hasHwData = (this.packetsIngestedCount > 0);
+    this.dispatchMap?.update(activePacket, packet.fleet_summary, activePacket.fog_density, isHw, hasHwData);
 
     // 4. Update Collision Alert Banner
     this.updateCollisionBanner(activePacket);
@@ -533,23 +564,22 @@ class HEMMSafetyApp {
     const isHardwareMode = (this.appMode === "HARDWARE");
 
     if (isHardwareMode) {
+      // Hardware Mode: User requested ONLY 1 single active hardware device (no 2 vehicle names)
       if (this.pairedVehicleName) {
         selectVehicle.innerHTML = `
-          <option value="${this.pairedVehicleName}" selected>🟢 PAIRED MACHINE: ${this.pairedVehicleName}</option>
+          <option value="${this.pairedVehicleName}" selected>📡 PAIRED MACHINE: ${this.pairedVehicleName}</option>
         `;
       } else {
         selectVehicle.innerHTML = `
-          <option value="UNPAIRED" selected>🔌 WAITING TO PAIR... (Add Hardware Device)</option>
+          <option value="HEMM-DUMP-07" selected>📡 ACTIVE HEMM HARDWARE UNIT (Pi 4B + ESP32 Node)</option>
         `;
       }
     } else {
-      // Training / Demo Simulation Mode: Show full 5-vehicle fleet
+      // Demo Mode: Single unified Demo Vehicle as primary, plus fleet units
       selectVehicle.innerHTML = `
-        <option value="HEMM-DUMP-07" ${this.activeVehicleId === "HEMM-DUMP-07" ? "selected" : ""}>🚛 Truck #1: HEMM-DUMP-07 (CAT 777D)</option>
-        <option value="HEMM-DUMP-02" ${this.activeVehicleId === "HEMM-DUMP-02" ? "selected" : ""}>🚛 Truck #2: HEMM-DUMP-02 (Komatsu HD785)</option>
-        <option value="MINE-LV-03" ${this.activeVehicleId === "MINE-LV-03" ? "selected" : ""}>🚙 Patrol #3: MINE-LV-03 (Bolero Escort)</option>
-        <option value="HEMM-SHOV-04" ${this.activeVehicleId === "HEMM-SHOV-04" ? "selected" : ""}>⛏️ Shovel #4: HEMM-SHOV-04 (P&H 1900AL)</option>
-        <option value="HEMM-DOZ-01" ${this.activeVehicleId === "HEMM-DOZ-01" ? "selected" : ""}>🚜 Dozer #1: HEMM-DOZ-01 (CAT D11T)</option>
+        <option value="HEMM-DUMP-07" ${this.activeVehicleId === "HEMM-DUMP-07" ? "selected" : ""}>🚛 DEMO VEHICLE: CAT 777D (Active Demo Truck)</option>
+        <option value="HEMM-DUMP-02" ${this.activeVehicleId === "HEMM-DUMP-02" ? "selected" : ""}>🚛 FLEET UNIT: Komatsu HD785</option>
+        <option value="MINE-LV-03" ${this.activeVehicleId === "MINE-LV-03" ? "selected" : ""}>🚙 PATROL ESCORT: Bolero LV-03</option>
       `;
     }
   }
@@ -642,6 +672,186 @@ class HEMMSafetyApp {
     fastSetText("hud-gps", `${packet.gps.lat.toFixed(5)} N, ${packet.gps.lng.toFixed(5)} E (${packet.gps.altitude_m}m)`);
     fastSetText("hud-visibility", `${packet.visibility_m.toFixed(1)}m`);
     fastSetText("hud-mode-tag", packet.mode || "SIMULATION");
+
+    // 1. Pi Camera Module 3 Wide AI Status
+    const camHazardEl = document.getElementById("camera-hazard-type");
+    if (camHazardEl) {
+      if (packet.collision_state === "CRITICAL") {
+        camHazardEl.className = "text-rose-400 font-bold animate-pulse";
+        camHazardEl.innerText = packet.active_hazard === "MINER_IN_FOG" ? "👷 MINE WORKER IN PATH" : "🚨 IMMEDIATE COLLISION HAZARD";
+      } else if (packet.collision_state === "ADVISORY") {
+        camHazardEl.className = "text-amber-300 font-bold";
+        camHazardEl.innerText = "⚠️ PROXIMITY ADVISORY (SLOW DOWN)";
+      } else {
+        camHazardEl.className = "text-emerald-400 font-bold";
+        camHazardEl.innerText = "HAUL ROAD CLEAR";
+      }
+    }
+    const detCount = (packet.radar && packet.radar.targets ? packet.radar.targets.length : 0) + (packet.radar && packet.radar.distance_m < 80 ? 1 : 0);
+    fastSetText("camera-detections-badge", `${Math.max(1, detCount)} TARGET${detCount > 1 ? "S" : ""} DETECTED`);
+
+    // 2. Dual VL53L1X Laser ToF Sensors
+    if (packet.tof_laser) {
+      fastSetText("hud-tof-left", packet.tof_laser.left_m.toFixed(2));
+      fastSetText("hud-tof-right", packet.tof_laser.right_m.toFixed(2));
+      const tofBadge = document.getElementById("hud-tof-badge");
+      if (tofBadge) {
+        if (packet.tof_laser.berm_warning) {
+          tofBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
+          tofBadge.innerText = `⚠️ BERM DRIFT (${packet.tof_laser.warning_side || "ALERT"})`;
+        } else {
+          tofBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+          tofBadge.innerText = "BERM CLEAR";
+        }
+      }
+      const offset = packet.berm_proximity ? packet.berm_proximity.lane_offset_m : 0.0;
+      fastSetText("hud-berm-offset-status", offset !== 0.0 ? `DRIFT ${offset > 0 ? "+" : ""}${offset.toFixed(1)}m` : "CENTERED (0.0m)");
+    }
+
+    // 3. 77 GHz mmWave Radar Telemetry
+    if (packet.radar) {
+      fastSetText("hud-radar-dist", packet.radar.distance_m < 900 ? `${packet.radar.distance_m.toFixed(1)} m` : "CLEAR (>50m)");
+      fastSetText("hud-radar-relspeed", `${packet.radar.relative_speed_kmh > 0 ? "+" : ""}${packet.radar.relative_speed_kmh.toFixed(1)} km/h`);
+      fastSetText("hud-radar-azimuth", `${packet.radar.azimuth_deg > 0 ? "+" : ""}${packet.radar.azimuth_deg.toFixed(1)}°`);
+    }
+
+    // 4. BMP280 Atmospheric Sensor
+    if (packet.atmosphere) {
+      fastSetText("hud-bmp-pressure", `${packet.atmosphere.pressure_hpa.toFixed(1)} hPa`);
+      fastSetText("hud-bmp-alt", `${Math.round(packet.atmosphere.altitude_m)} m`);
+      fastSetText("hud-bmp-temp", `${packet.atmosphere.temp_celsius.toFixed(1)} °C`);
+    } else {
+      fastSetText("hud-bmp-pressure", "1013.2 hPa");
+      fastSetText("hud-bmp-alt", `${Math.round(packet.gps ? packet.gps.altitude_m : 1220)} m`);
+      fastSetText("hud-bmp-temp", "28.4 °C");
+    }
+
+    // 5. MPU6050 6-Axis IMU (Inclinometer & Rollover)
+    fastSetText("hud-imu-pitch", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}°`);
+    fastSetText("hud-imu-roll", `${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}°`);
+    if (packet.imu) {
+      fastSetText("hud-imu-grade", `SLOPE: ${packet.imu.grade_percent > 0 ? "+" : ""}${packet.imu.grade_percent.toFixed(1)}%`);
+      fastSetText("hud-imu-grade-val", `${packet.imu.grade_percent > 0 ? "+" : ""}${packet.imu.grade_percent.toFixed(1)}%`);
+      fastSetText("hud-imu-gforce", `${packet.imu.g_force_z.toFixed(2)} G`);
+      const imuBadge = document.getElementById("hud-imu-status-badge");
+      if (imuBadge) {
+        if (packet.imu.impact_detected || Math.abs(packet.roll_deg) > 12) {
+          imuBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
+          imuBadge.innerText = "ROLLOVER RISK";
+        } else {
+          imuBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+          imuBadge.innerText = "STABLE";
+        }
+      }
+    }
+
+    // 6. Optical Wheel Encoder (Ground Odometry)
+    if (packet.encoder) {
+      fastSetText("hud-encoder-rpm", String(packet.encoder.rpm));
+      fastSetText("hud-encoder-pulses", `${packet.encoder.pulses_per_sec} p/s`);
+      fastSetText("hud-encoder-rpm-val", `${packet.encoder.rpm} RPM`);
+      fastSetText("hud-encoder-pulses-val", `${packet.encoder.pulses_per_sec} p/s`);
+      fastSetText("hud-encoder-speed-val", `${packet.encoder.speed_kmh.toFixed(1)} km/h`);
+      fastSetText("hud-encoder-trip", `${Math.round(packet.encoder.trip_meters)} m`);
+    } else {
+      fastSetText("hud-encoder-rpm", String(packet.rpm || 1650));
+      fastSetText("hud-encoder-pulses", `${Math.round((packet.rpm || 1650) / 3)} p/s`);
+      fastSetText("hud-encoder-rpm-val", `${packet.rpm || 1650} RPM`);
+      fastSetText("hud-encoder-pulses-val", `${Math.round((packet.rpm || 1650) / 3)} p/s`);
+      fastSetText("hud-encoder-speed-val", `${packet.speed_kmh.toFixed(1)} km/h`);
+      fastSetText("hud-encoder-trip", "1428 m");
+    }
+
+    // 7. NEO-M8N GPS Module
+    if (packet.gps) {
+      fastSetText("hud-gps-sats", `${packet.gps.satellites || 14} / 18`);
+      fastSetText("hud-gps-hdop", `${(packet.gps.hdop || 0.82).toFixed(2)} m`);
+      fastSetText("hud-gps-coords", `${packet.gps.lat.toFixed(4)}, ${packet.gps.lng.toFixed(4)}`);
+    }
+
+    // 8. V2V Communication Link (Wi-Fi / LoRa)
+    if (packet.v2v) {
+      fastSetText("hud-v2v-peer", packet.v2v.peer_car_id ? packet.v2v.peer_car_id.split(" ")[0] : "HEMM-DUMP-02");
+      fastSetText("hud-v2v-dist", `${packet.v2v.distance_to_peer_m.toFixed(1)} m`);
+      fastSetText("hud-v2v-rel-speed", `${packet.v2v.relative_speed_kmh > 0 ? "+" : ""}${packet.v2v.relative_speed_kmh.toFixed(1)} km/h`);
+      fastSetText("hud-v2v-rssi", `${packet.v2v.rssi_dbm} dBm`);
+
+      const v2vTag = document.getElementById("hud-v2v-alert-tag");
+      if (v2vTag) {
+        if (packet.v2v.auto_stop_actuated) {
+          v2vTag.className = "text-rose-400 font-bold animate-pulse";
+          v2vTag.innerText = "🛑 AUTO-STOP ENGAGED";
+        } else if (packet.v2v.v2v_alert) {
+          v2vTag.className = "text-amber-300 font-bold";
+          v2vTag.innerText = "⚠️ PROXIMITY WARN";
+        } else {
+          v2vTag.className = "text-emerald-400 font-bold";
+          v2vTag.innerText = "LINK SAFE";
+        }
+      }
+    }
+
+    // 9. Raspberry Pi 4B Edge Data Fusion
+    if (packet.rpi_edge) {
+      fastSetText("hud-fusion-lat", `${packet.rpi_edge.fusion_latency_ms.toFixed(1)} ms`);
+    }
+
+    // 10. ESP32 Motor Control & Safety Actuation Node
+    if (packet.motor_control) {
+      const espBadge = document.getElementById("hud-esp32-status");
+      if (espBadge) {
+        if (packet.motor_control.emergency_stop_actuated) {
+          espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-500 font-bold animate-pulse";
+          espBadge.innerText = "MOTOR: E-STOPPED";
+        } else if (packet.motor_control.status === "THROTTLE_CUT") {
+          espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-500 font-bold";
+          espBadge.innerText = "MOTOR: THROTTLE CUT";
+        } else {
+          espBadge.className = "text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40 font-bold";
+          espBadge.innerText = "MOTOR: NORMAL";
+        }
+      }
+      fastSetText("hud-pwm-duty", `PWM ${packet.motor_control.motor_pwm_duty}/255`);
+      fastSetText("hud-buzzer-state", packet.motor_control.buzzer_active ? "ALARM" : "OFF");
+    }
+
+    // 11. Mirror to Central Dispatch Active Demo Telemetry Ribbon
+    if (packet.collision_state === "CRITICAL") {
+      fastSetText("disp-cam-status", packet.active_hazard === "MINER_IN_FOG" ? "👷 WORKER DETECTED" : "🚨 HAZARD IN PATH");
+    } else if (packet.collision_state === "ADVISORY") {
+      fastSetText("disp-cam-status", "⚠️ PROXIMITY WARN");
+    } else {
+      fastSetText("disp-cam-status", "HAUL ROAD CLEAR");
+    }
+
+    if (packet.tof_laser) {
+      fastSetText("disp-tof-status", `L: ${packet.tof_laser.left_m.toFixed(1)}m / R: ${packet.tof_laser.right_m.toFixed(1)}m`);
+    }
+    fastSetText("disp-imu-status", `${packet.pitch_deg > 0 ? "+" : ""}${packet.pitch_deg.toFixed(1)}° P / ${packet.roll_deg > 0 ? "+" : ""}${packet.roll_deg.toFixed(1)}° R`);
+  }
+
+  async triggerV2VEStop() {
+    try {
+      const res = await fetch("/api/v2v/motor_stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicle_id: this.activeVehicleId || "HEMM-DUMP-07" })
+      });
+      if (res.ok) {
+        const btn = document.getElementById("btn-trigger-v2v-estop");
+        if (btn) {
+          btn.innerText = "🛑 E-STOP ACTIVATED!";
+          btn.className = "px-2 py-0.5 rounded bg-rose-600 text-white text-[9px] font-mono font-bold animate-pulse shadow-md";
+          setTimeout(() => {
+            btn.innerText = "⚡ TEST E-STOP";
+            btn.className = "px-2 py-0.5 rounded bg-rose-900/90 hover:bg-rose-800 border border-rose-400 text-rose-100 text-[9px] font-mono font-bold transition-all shadow-sm";
+          }, 3500);
+        }
+        await this.fetchTelemetryHttp();
+      }
+    } catch (e) {
+      console.error("E-Stop trigger error:", e);
+    }
   }
 
   updateDispatchCards(packet) {
@@ -795,6 +1005,15 @@ class HEMMSafetyApp {
       deckHw?.classList.add("hidden");
       deckDemo?.classList.remove("hidden");
 
+      this.activeVehicleId = "HEMM-DUMP-07";
+      if (this.dispatchMap) {
+        this.dispatchMap.hasAutoCentered = false;
+        this.dispatchMap.selectedVehicle = "HEMM-DUMP-07";
+      }
+
+      // Automatically bring operator into Cab HUD so Camera, Laser ToF, and Inclinometer are front and center
+      this.switchView("HUD");
+
       fetch("/api/mode/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -819,6 +1038,9 @@ class HEMMSafetyApp {
     }
 
     this.updateCabUnitOptions();
+    if (this.latestPacket) {
+      this.consumePacket(this.latestPacket);
+    }
   }
 
   openHardwareModal() {
