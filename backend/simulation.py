@@ -19,6 +19,13 @@ try:
         FleetVehicleSummary,
         IncidentRecord,
         CollisionStateEnum,
+        VL53L1XData,
+        MPU6050Data,
+        WheelEncoderData,
+        BMP280Data,
+        V2VLinkData,
+        RaspberryPiEdgeData,
+        ESP32MotorControlData,
     )
 except ImportError:
     from models import (
@@ -30,6 +37,13 @@ except ImportError:
         FleetVehicleSummary,
         IncidentRecord,
         CollisionStateEnum,
+        VL53L1XData,
+        MPU6050Data,
+        WheelEncoderData,
+        BMP280Data,
+        V2VLinkData,
+        RaspberryPiEdgeData,
+        ESP32MotorControlData,
     )
 
 class HazardTypeEnum(str, Enum):
@@ -74,8 +88,9 @@ class SimulationEngine:
     def _init_fleet(self) -> Dict[str, Dict[str, Any]]:
         return {
             "HEMM-DUMP-07": {
-                "name": "CAT 777D (100T)",
+                "name": "CAT 777D Dump Truck (Unit 07)",
                 "type": "DUMP_TRUCK",
+                "car_role": "DUMP_TRUCK",
                 "progress": 0.28,
                 "speed": 16.0,
                 "heading": 182.0,
@@ -89,11 +104,17 @@ class SimulationEngine:
                 "operator": "Rajesh Verma (ID: EMP-4092)",
                 "zone": "Mid-Pit Berm Zone",
                 "collision_state": "CLEAR",
+                "v2v_dist": 18.5,
+                "v2v_rel_speed": -2.0,
+                "v2v_rssi": -62,
+                "v2v_alert": False,
+                "auto_stop": False,
             },
             "HEMM-DUMP-02": {
-                "name": "Komatsu HD785-7 (100T)",
+                "name": "Komatsu HD785 Dump Truck (Unit 02)",
                 "type": "DUMP_TRUCK",
-                "progress": 0.35,
+                "car_role": "DUMP_TRUCK",
+                "progress": 0.284,
                 "speed": 18.0,
                 "heading": 185.0,
                 "gear": "D4",
@@ -104,8 +125,13 @@ class SimulationEngine:
                 "payload": 0.0,
                 "status": "HAULING",
                 "operator": "Amit Soren (ID: EMP-3811)",
-                "zone": "Fog Valley Choke Point",
+                "zone": "Mid-Pit Berm Zone",
                 "collision_state": "CLEAR",
+                "v2v_dist": 18.5,
+                "v2v_rel_speed": 2.0,
+                "v2v_rssi": -62,
+                "v2v_alert": False,
+                "auto_stop": False,
             },
             "HEMM-SHOV-04": {
                 "name": "P&H 1900AL Electric Shovel",
@@ -231,6 +257,50 @@ class SimulationEngine:
             v_data["heading"] = heading_val
             v_data["zone"] = zone_val
 
+        # Dynamic V2V Communication (Wi-Fi / LoRa) & ESP32 Motor Stop Actuation between CAR 1 & CAR 2
+        car1 = self.fleet_vehicles.get("HEMM-DUMP-07")
+        car2 = self.fleet_vehicles.get("HEMM-DUMP-02")
+        if car1 and car2:
+            prog_diff = abs(car1["progress"] - car2["progress"])
+            if prog_diff > 0.5:
+                prog_diff = 1.0 - prog_diff
+            dist_m = max(1.5, prog_diff * loop_length)
+            rel_speed = car2["speed"] - car1["speed"]
+            
+            # Attenuate RSSI based on distance & fog density
+            rssi = max(-95, min(-45, int(-48 - (dist_m * 0.8) - (self.fog_density * 15))))
+            
+            v2v_alert = False
+            auto_stop = False
+            
+            # Proximity safety decision logic (Coordinated V2V)
+            if dist_m < 15.0 or (self.active_hazard != HazardTypeEnum.NONE.value and self.hazard_distance < 12.0):
+                v2v_alert = True
+                if dist_m < 6.5 or (self.active_hazard != HazardTypeEnum.NONE.value and self.hazard_distance < 6.0):
+                    auto_stop = True
+                    # Actuate ESP32 Motor Cutoff & Service Brake on following CAR 2
+                    car2["speed"] = max(0.0, car2["speed"] - 25.0 * dt)
+                    car2["brake_psi"] = 320.0
+                    car2["collision_state"] = "CRITICAL"
+                else:
+                    car2["collision_state"] = "ADVISORY"
+            else:
+                if self.active_hazard == HazardTypeEnum.NONE.value:
+                    car2["collision_state"] = "CLEAR"
+                    car2["brake_psi"] = 55.0
+            
+            car1["v2v_dist"] = dist_m
+            car1["v2v_rel_speed"] = -rel_speed
+            car1["v2v_rssi"] = rssi
+            car1["v2v_alert"] = v2v_alert
+            car1["auto_stop"] = auto_stop
+            
+            car2["v2v_dist"] = dist_m
+            car2["v2v_rel_speed"] = rel_speed
+            car2["v2v_rssi"] = rssi
+            car2["v2v_alert"] = v2v_alert
+            car2["auto_stop"] = auto_stop
+
         # Rotate radar sweep
         self.radar_sweep_angle = (self.radar_sweep_angle + 240.0 * dt) % 360.0
 
@@ -352,6 +422,7 @@ class SimulationEngine:
             lane_offset = -2.0
             target_detected = True
             target_dist = berm_left
+            v_info["roll"] = -8.5
             collision_state = CollisionStateEnum.CRITICAL.value if berm_left < 1.2 else CollisionStateEnum.ADVISORY.value
 
         elif h == HazardTypeEnum.BERM_DRIFT_RIGHT.value:
@@ -359,15 +430,18 @@ class SimulationEngine:
             lane_offset = 2.0
             target_detected = True
             target_dist = berm_right
+            v_info["roll"] = 8.5
             collision_state = CollisionStateEnum.CRITICAL.value if berm_right < 1.2 else CollisionStateEnum.ADVISORY.value
 
         elif h == HazardTypeEnum.EXTREME_FOG.value:
             self.fog_density = 0.95
             self.visibility_m = 1.8
+            v_info["roll"] = 0.5
             collision_state = CollisionStateEnum.ADVISORY.value
         else:
             self.fog_density = 0.65
             self.visibility_m = 8.5
+            v_info["roll"] = 0.5
 
         if include_thermal:
             matrix, min_t, max_t, center_t, label = self.generate_thermal_matrix(hotspot_x, hotspot_y, hotspot_label)
@@ -381,10 +455,81 @@ class SimulationEngine:
         if target_detected and target_dist < 900.0 and abs(rel_speed) > 0.5:
             ttc_s = round(target_dist / (abs(rel_speed) * 1000.0 / 3600.0), 1)
 
+        car_role = v_info.get("car_role", "DUMP_TRUCK")
+        loop_length = 4200.0
+        wheel_rpm = int(my_speed * 105.0)
+        is_stopped = v_info.get("auto_stop", False) or collision_state == "CRITICAL"
+        
+        # Dual VL53L1X ToF Laser Ranging Data
+        tof_data = VL53L1XData(
+            left_cm=round(berm_left * 100.0, 1),
+            right_cm=round(berm_right * 100.0, 1),
+            left_m=round(berm_left, 2),
+            right_m=round(berm_right, 2),
+            berm_warning=berm_left < 1.2 or berm_right < 1.2,
+            warning_side="LEFT" if berm_left < 1.2 else ("RIGHT" if berm_right < 1.2 else None),
+        )
+        
+        # MPU6050 6-Axis IMU Data
+        imu_data = MPU6050Data(
+            pitch_deg=round(v_info.get("pitch", -2.8), 1),
+            roll_deg=round(v_info.get("roll", 0.5), 1),
+            yaw_deg=round(my_heading, 1),
+            grade_percent=round(math.tan(math.radians(v_info.get("pitch", -2.8))) * 100.0, 1),
+            g_force_z=round(1.01 + (0.04 if my_speed > 0 else 0.0), 2),
+            impact_detected=is_stopped and collision_state == "CRITICAL",
+        )
+        
+        # Optical Wheel Encoder Telemetry
+        encoder_data = WheelEncoderData(
+            speed_kmh=round(my_speed, 1),
+            rpm=wheel_rpm,
+            trip_meters=round(v_info["progress"] * loop_length, 1),
+            pulses_per_sec=int(wheel_rpm * 20 / 60),
+        )
+        
+        # BMP280 Atmospheric Data
+        atmosphere_data = BMP280Data(
+            temp_celsius=round(24.5 - (my_gps.altitude_m - 1100.0) * 0.0065, 1),
+            pressure_hpa=round(1013.25 * math.exp(-my_gps.altitude_m / 8400.0), 1),
+            altitude_m=round(my_gps.altitude_m, 1),
+        )
+        
+        # V2V Inter-Vehicle Mesh Link
+        v2v_data = V2VLinkData(
+            connected=True,
+            peer_car_id="HEMM-DUMP-02 [Komatsu HD785]" if vehicle_id == "HEMM-DUMP-07" else "HEMM-DUMP-07 [CAT 777D]",
+            distance_to_peer_m=round(v_info.get("v2v_dist", 18.5), 1),
+            relative_speed_kmh=round(v_info.get("v2v_rel_speed", -2.0), 1),
+            rssi_dbm=int(v_info.get("v2v_rssi", -62)),
+            v2v_alert=v_info.get("v2v_alert", False),
+            auto_stop_actuated=v_info.get("auto_stop", False),
+        )
+        
+        # Raspberry Pi 4B Data Fusion Node
+        rpi_data = RaspberryPiEdgeData(
+            cpu_temp_c=round(42.5 + (0.15 * my_speed), 1),
+            data_fusion_active=True,
+            fusion_latency_ms=11.2 if collision_state == "CLEAR" else 14.5,
+            camera_fps=29.4,
+            active_cooler_rpm=4300 if my_speed > 0 else 3600,
+        )
+        
+        # ESP32 Motor Control & Actuation Node
+        motor_data = ESP32MotorControlData(
+            motor_pwm_duty=0 if is_stopped else int(min(255, my_speed * 12.0)),
+            emergency_stop_actuated=is_stopped,
+            buzzer_active=collision_state in ["ADVISORY", "CRITICAL"] or v_info.get("v2v_alert", False),
+            warning_led_active=collision_state == "CRITICAL" or v_info.get("auto_stop", False),
+            brake_solenoid_engaged=is_stopped,
+            status="EMERGENCY_STOP" if is_stopped else ("THROTTLE_CUT" if collision_state == "ADVISORY" else "NORMAL"),
+        )
+
         return TelemetryPacket(
             vehicle_id=vehicle_id,
             vehicle_name=v_info["name"],
             vehicle_type=v_info["type"],
+            car_role=car_role,
             timestamp=now,
             speed_kmh=round(my_speed, 1),
             heading_deg=round(my_heading, 1),
@@ -407,6 +552,16 @@ class SimulationEngine:
                 targets=targets,
                 sweep_angle_deg=round(self.radar_sweep_angle, 1),
             ),
+            tof_laser=tof_data,
+            imu=imu_data,
+            encoder=encoder_data,
+            atmosphere=atmosphere_data,
+            v2v=v2v_data,
+            rpi_edge=rpi_data,
+            motor_control=motor_data,
+            camera_stream_active=True,
+            camera_detections_count=len(targets),
+            camera_primary_label=hotspot_label or (targets[0].target_type if targets else None),
             collision_state=collision_state,
             time_to_collision_s=ttc_s,
             thermal_matrix=matrix,
@@ -437,6 +592,7 @@ class SimulationEngine:
                 vehicle_id=v_id,
                 vehicle_name=v["name"],
                 vehicle_type=v["type"],
+                car_role=v.get("car_role", v["type"]),
                 speed_kmh=round(v["speed"], 1),
                 heading_deg=round(v.get("heading", 180.0), 1),
                 gps=gps_val,
@@ -447,6 +603,8 @@ class SimulationEngine:
                 status=v["status"],
                 radar_target_detected=False,
                 nearest_target_m=999.0,
+                v2v_peer_distance_m=round(v.get("v2v_dist", 18.5), 1) if "v2v_dist" in v else None,
+                auto_stop_actuated=v.get("auto_stop", False),
             ))
         return res
 
