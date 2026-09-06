@@ -217,6 +217,47 @@ class SimulationEngine:
             self.mode = mode.upper()
         else:
             self.mode = "HARDWARE" if self.mode == "SIMULATION" else "SIMULATION"
+
+        if self.mode == "SIMULATION":
+            self.is_paused = False
+            # Cleanly restore full active demo cruising state for lead truck
+            v = self.fleet_vehicles.get("HEMM-DUMP-07")
+            if v:
+                v["speed"] = 38.0
+                v["gear"] = "D3"
+                v["rpm"] = 1750
+                v["brake_psi"] = 60.0
+                v["pitch"] = -2.8
+                v["roll"] = 0.5
+                v["payload"] = 96.4
+                v["collision_state"] = "CLEAR"
+                v["v2v_dist"] = 18.5
+                v["auto_stop"] = False
+            car2 = self.fleet_vehicles.get("HEMM-DUMP-02")
+            if car2:
+                car2["speed"] = 18.0
+                car2["gear"] = "D4"
+                car2["rpm"] = 1700
+                car2["brake_psi"] = 55.0
+                car2["collision_state"] = "CLEAR"
+                car2["auto_stop"] = False
+            self.active_hazard = HazardTypeEnum.NONE.value
+            self.hazard_distance = 22.5
+            self.fog_density = 0.65
+            self.visibility_m = 8.5
+        elif self.mode == "HARDWARE":
+            # Hardware mode Standby: zero out virtual driving kinematics
+            v = self.fleet_vehicles.get("HEMM-DUMP-07")
+            if v:
+                v["speed"] = 0.0
+                v["gear"] = "P"
+                v["rpm"] = 0
+                v["brake_psi"] = 0.0
+                v["pitch"] = 0.0
+                v["roll"] = 0.0
+                v["collision_state"] = "CLEAR"
+                v["auto_stop"] = False
+
         return self.mode
 
     def toggle_pause(self) -> bool:
