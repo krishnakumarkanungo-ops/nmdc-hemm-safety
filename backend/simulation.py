@@ -92,10 +92,10 @@ class SimulationEngine:
                 "type": "DUMP_TRUCK",
                 "car_role": "DUMP_TRUCK",
                 "progress": 0.28,
-                "speed": 16.0,
+                "speed": 38.0,
                 "heading": 182.0,
                 "gear": "D3",
-                "rpm": 1650,
+                "rpm": 1750,
                 "pitch": -2.8,
                 "roll": 0.5,
                 "brake_psi": 60.0,
@@ -245,6 +245,10 @@ class SimulationEngine:
         if self.is_paused:
             return
 
+        # In pure Hardware Mode with no real hardware driving physics, do not run virtual simulation loop
+        if self.mode == "HARDWARE":
+            return
+
         now = time.time()
         loop_length = 4200.0
         for v_id, v_data in self.fleet_vehicles.items():
@@ -337,37 +341,149 @@ class SimulationEngine:
         my_heading = v_info.get("heading", 182.0)
 
         # Hardware mode override
-        if self.mode == "HARDWARE" and vehicle_id in self.hardware_packets:
-            hw_entry = self.hardware_packets[vehicle_id]
-            if now - hw_entry["timestamp"] < 3.5:
-                hw = hw_entry["packet"]
-                return TelemetryPacket(
-                    vehicle_id=vehicle_id,
-                    vehicle_name=v_info["name"],
-                    vehicle_type=v_info["type"],
-                    timestamp=now,
-                    speed_kmh=hw.get("speed_kmh", my_speed),
-                    heading_deg=hw.get("heading_deg", my_heading),
-                    gps=GPSData(
-                        lat=hw.get("gps", {}).get("lat", my_gps.lat),
-                        lng=hw.get("gps", {}).get("lng", my_gps.lng),
-                        altitude_m=hw.get("gps", {}).get("altitude_m", my_gps.altitude_m),
-                    ),
-                    radar=RadarTelemetry(
-                        target_detected=hw.get("radar", {}).get("target_detected", False),
-                        distance_m=hw.get("radar", {}).get("distance_m", 999.0),
-                        relative_speed_kmh=hw.get("radar", {}).get("relative_speed_kmh", 0.0),
-                        targets=[],
-                    ),
-                    collision_state=hw.get("collision_state", "CLEAR"),
-                    thermal_matrix=hw.get("thermal_matrix", []),
-                    berm_proximity=BermProximity(
-                        left_dist_m=hw.get("berm_left_m", 4.2),
-                        right_dist_m=hw.get("berm_right_m", 4.1),
-                    ),
-                    mode="HARDWARE",
-                    zone_name=v_info.get("zone", "Haul Road"),
-                )
+        if self.mode == "HARDWARE":
+            if vehicle_id in self.hardware_packets:
+                hw_entry = self.hardware_packets[vehicle_id]
+                if now - hw_entry["timestamp"] < 5.0:
+                    hw = hw_entry["packet"]
+                    return TelemetryPacket(
+                        vehicle_id=vehicle_id,
+                        vehicle_name=v_info["name"],
+                        vehicle_type=v_info["type"],
+                        car_role=v_info.get("car_role", "DUMP_TRUCK"),
+                        timestamp=now,
+                        speed_kmh=round(hw.get("speed_kmh", 0.0), 1),
+                        heading_deg=round(hw.get("heading_deg", 180.0), 1),
+                        gear=hw.get("gear", "D1"),
+                        rpm=int(hw.get("rpm", 1200)),
+                        pitch_deg=round(hw.get("pitch_deg", 0.0), 1),
+                        roll_deg=round(hw.get("roll_deg", 0.0), 1),
+                        brake_pressure_psi=round(hw.get("brake_psi", 0.0), 1),
+                        payload_tons=round(hw.get("payload_tons", 95.0), 1),
+                        fog_density=round(hw.get("fog_density", 0.1), 2),
+                        visibility_m=round(hw.get("visibility_m", 45.0), 1),
+                        zone_name="Deposit 14 Haul Ramp (Live Hardware)",
+                        gps=GPSData(
+                            lat=hw.get("gps", {}).get("lat", 18.7145),
+                            lng=hw.get("gps", {}).get("lng", 81.2525),
+                            altitude_m=hw.get("gps", {}).get("altitude_m", 1220.0),
+                        ),
+                        radar=RadarTelemetry(
+                            target_detected=hw.get("radar", {}).get("target_detected", False),
+                            distance_m=round(hw.get("radar", {}).get("distance_m", 999.0), 1),
+                            relative_speed_kmh=round(hw.get("radar", {}).get("relative_speed_kmh", 0.0), 1),
+                            azimuth_deg=round(hw.get("radar", {}).get("azimuth_deg", 0.0), 1),
+                            snr_db=30.0 if hw.get("radar", {}).get("target_detected", False) else 0.0,
+                            targets=[],
+                            sweep_angle_deg=0.0,
+                        ),
+                        tof_laser=VL53L1XData(
+                            left_cm=round(hw.get("tof_left_cm", 420.0), 1),
+                            right_cm=round(hw.get("tof_right_cm", 410.0), 1),
+                            left_m=round(hw.get("berm_left_m", 4.2), 2),
+                            right_m=round(hw.get("berm_right_m", 4.1), 2),
+                            berm_warning=hw.get("berm_left_m", 4.2) < 1.2 or hw.get("berm_right_m", 4.1) < 1.2,
+                        ),
+                        imu=MPU6050Data(
+                            pitch_deg=round(hw.get("pitch_deg", 0.0), 1),
+                            roll_deg=round(hw.get("roll_deg", 0.0), 1),
+                            yaw_deg=round(hw.get("heading_deg", 180.0), 1),
+                            grade_percent=round(math.tan(math.radians(hw.get("pitch_deg", 0.0))) * 100.0, 1),
+                            g_force_z=1.02,
+                            impact_detected=False,
+                        ),
+                        encoder=WheelEncoderData(
+                            speed_kmh=round(hw.get("speed_kmh", 0.0), 1),
+                            rpm=int(hw.get("speed_kmh", 0.0) * 105.0),
+                            trip_meters=0.0,
+                            pulses_per_sec=0,
+                        ),
+                        atmosphere=BMP280Data(
+                            temp_celsius=round(hw.get("temp_c", 24.5), 1),
+                            pressure_hpa=round(hw.get("pressure_hpa", 985.0), 1),
+                            altitude_m=1220.0,
+                        ),
+                        v2v=V2VLinkData(
+                            connected=True,
+                            peer_car_id="HEMM-DUMP-02 [Komatsu HD785]",
+                            distance_to_peer_m=18.5,
+                            relative_speed_kmh=0.0,
+                            rssi_dbm=-55,
+                            v2v_alert=False,
+                            auto_stop_actuated=False,
+                        ),
+                        rpi_edge=RaspberryPiEdgeData(
+                            cpu_temp_c=44.0,
+                            data_fusion_active=True,
+                            fusion_latency_ms=10.5,
+                            camera_fps=30.0,
+                            active_cooler_rpm=3800,
+                        ),
+                        motor_control=ESP32MotorControlData(
+                            motor_pwm_duty=0,
+                            emergency_stop_actuated=False,
+                            buzzer_active=False,
+                            warning_led_active=False,
+                            brake_solenoid_engaged=False,
+                            status="NORMAL",
+                        ),
+                        camera_stream_active=True,
+                        camera_detections_count=0,
+                        collision_state=hw.get("collision_state", "CLEAR"),
+                        time_to_collision_s=None,
+                        thermal_matrix=hw.get("thermal_matrix", []),
+                        berm_proximity=BermProximity(
+                            left_dist_m=round(hw.get("berm_left_m", 4.2), 1),
+                            right_dist_m=round(hw.get("berm_right_m", 4.1), 1),
+                        ),
+                        mode="HARDWARE",
+                        active_hazard="NONE",
+                    )
+
+            # Hardware mode without physical packet: Return true STANDBY telemetry (NO fake driving speed!)
+            return TelemetryPacket(
+                vehicle_id=vehicle_id,
+                vehicle_name=v_info["name"],
+                vehicle_type=v_info["type"],
+                car_role=v_info.get("car_role", "DUMP_TRUCK"),
+                timestamp=now,
+                speed_kmh=0.0,
+                heading_deg=180.0,
+                gear="P",
+                rpm=0,
+                pitch_deg=0.0,
+                roll_deg=0.0,
+                brake_pressure_psi=0.0,
+                payload_tons=0.0,
+                fog_density=0.0,
+                visibility_m=100.0,
+                zone_name="Deposit 14 (Pairing Standby)",
+                gps=GPSData(lat=18.7145, lng=81.2525, altitude_m=1220.0),
+                radar=RadarTelemetry(
+                    target_detected=False,
+                    distance_m=999.0,
+                    relative_speed_kmh=0.0,
+                    azimuth_deg=0.0,
+                    snr_db=0.0,
+                    targets=[],
+                    sweep_angle_deg=0.0,
+                ),
+                tof_laser=VL53L1XData(left_cm=0.0, right_cm=0.0, left_m=0.0, right_m=0.0, berm_warning=False),
+                imu=MPU6050Data(pitch_deg=0.0, roll_deg=0.0, yaw_deg=180.0, grade_percent=0.0, g_force_z=1.0, impact_detected=False),
+                encoder=WheelEncoderData(speed_kmh=0.0, rpm=0, trip_meters=0.0, pulses_per_sec=0),
+                atmosphere=BMP280Data(temp_celsius=24.0, pressure_hpa=985.0, altitude_m=1220.0),
+                v2v=V2VLinkData(connected=False, peer_car_id="None", distance_to_peer_m=0.0, relative_speed_kmh=0.0, rssi_dbm=0, v2v_alert=False, auto_stop_actuated=False),
+                rpi_edge=RaspberryPiEdgeData(cpu_temp_c=38.0, data_fusion_active=False, fusion_latency_ms=0.0, camera_fps=0.0, active_cooler_rpm=0),
+                motor_control=ESP32MotorControlData(motor_pwm_duty=0, emergency_stop_actuated=False, buzzer_active=False, warning_led_active=False, brake_solenoid_engaged=False, status="STANDBY"),
+                camera_stream_active=False,
+                camera_detections_count=0,
+                collision_state="CLEAR",
+                time_to_collision_s=None,
+                thermal_matrix=[],
+                berm_proximity=BermProximity(left_dist_m=0.0, right_dist_m=0.0, lane_offset_m=0.0, departure_warning=False),
+                mode="HARDWARE_STANDBY",
+                active_hazard="NONE",
+            )
 
         target_detected = False
         target_dist = 999.0
@@ -439,9 +555,25 @@ class SimulationEngine:
             v_info["roll"] = 0.5
             collision_state = CollisionStateEnum.ADVISORY.value
         else:
+            # Normal Demo Mode Haulage: Active simulated lead hauler ahead at safe distance
             self.fog_density = 0.65
             self.visibility_m = 8.5
             v_info["roll"] = 0.5
+            target_detected = True
+            target_dist = 22.5 + round(math.sin(now * 0.5) * 1.5, 1)
+            rel_speed = -1.2
+            targets.append(RadarTarget(
+                target_id="RAD-HAUL-02",
+                distance_m=target_dist,
+                relative_speed_kmh=rel_speed,
+                azimuth_deg=1.5,
+                snr_db=32.0,
+                target_type="DUMP_TRUCK",
+                ttc_seconds=round(target_dist / (abs(rel_speed) * 1000 / 3600), 1) if abs(rel_speed) > 0.5 else 45.0
+            ))
+            hotspot_x, hotspot_y = 16, 12
+            hotspot_label = "VEHICLE [KOMATSU HD785]"
+            collision_state = CollisionStateEnum.CLEAR.value
 
         if include_thermal:
             matrix, min_t, max_t, center_t, label = self.generate_thermal_matrix(hotspot_x, hotspot_y, hotspot_label)
