@@ -60,14 +60,23 @@ class ARLaneHUDRenderer {
     const w = this.canvas.width;
     const h = this.canvas.height;
 
-    // Smooth Lerp transitions
-    this.currentBermLeft += (this.targetBermLeft - this.currentBermLeft) * 0.15;
-    this.currentBermRight += (this.targetBermRight - this.currentBermRight) * 0.15;
-    this.currentFogDensity += (this.targetFogDensity - this.currentFogDensity) * 0.1;
-    this.currentVisibility += (this.targetVisibility - this.currentVisibility) * 0.1;
-    this.currentLaneOffset += (this.targetLaneOffset - this.currentLaneOffset) * 0.15;
+    const isStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY"));
 
-    this.roadTextureOffset = (this.roadTextureOffset + 0.02) % 1.0;
+    if (isStandby) {
+      this.currentBermLeft = 0.0;
+      this.currentBermRight = 0.0;
+      this.currentLaneOffset = 0.0;
+      // Keep road stationary in standby
+    } else {
+      // Smooth Lerp transitions in Demo
+      this.currentBermLeft += (this.targetBermLeft - this.currentBermLeft) * 0.15;
+      this.currentBermRight += (this.targetBermRight - this.currentBermRight) * 0.15;
+      this.currentFogDensity += (this.targetFogDensity - this.currentFogDensity) * 0.1;
+      this.currentVisibility += (this.targetVisibility - this.currentVisibility) * 0.1;
+      this.currentLaneOffset += (this.targetLaneOffset - this.currentLaneOffset) * 0.15;
+      this.roadTextureOffset = (this.roadTextureOffset + 0.02) % 1.0;
+    }
 
     // 1. Dark Gradient Background
     ctx.clearRect(0, 0, w, h);
@@ -132,26 +141,28 @@ class ARLaneHUDRenderer {
     ctx.lineTo(w / 2, btmY);
     ctx.stroke();
 
-    // Moving forward chevrons
-    for (let i = 1; i <= 3; i++) {
-      const ct = (i / 3.5 + this.roadTextureOffset * 0.4) % 1.0;
-      const chY = vpY + (btmY - vpY) * ct;
-      const chSize = 10 + ct * 22;
-      const chX = w / 2;
+    // Moving forward chevrons (Only in active driving mode)
+    if (!isStandby) {
+      for (let i = 1; i <= 3; i++) {
+        const ct = (i / 3.5 + this.roadTextureOffset * 0.4) % 1.0;
+        const chY = vpY + (btmY - vpY) * ct;
+        const chSize = 10 + ct * 22;
+        const chX = w / 2;
 
-      ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(chX - chSize, chY + chSize * 0.5);
-      ctx.lineTo(chX, chY);
-      ctx.lineTo(chX + chSize, chY + chSize * 0.5);
-      ctx.stroke();
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(chX - chSize, chY + chSize * 0.5);
+        ctx.lineTo(chX, chY);
+        ctx.lineTo(chX + chSize, chY + chSize * 0.5);
+        ctx.stroke();
+      }
     }
     ctx.restore();
 
     // 5. Berm Safety Outer Guidelines (Cyan / Green / Red)
-    const leftBermCritical = this.currentBermLeft < 1.2;
-    const rightBermCritical = this.currentBermRight < 1.2;
+    const leftBermCritical = !isStandby && this.currentBermLeft < 1.2;
+    const rightBermCritical = !isStandby && this.currentBermRight < 1.2;
 
     // Left Berm Line
     ctx.beginPath();
@@ -174,8 +185,8 @@ class ARLaneHUDRenderer {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // 5. Dynamic AR Obstacle Box in Fog
-    if (this.radarData && this.radarData.target_detected && this.radarData.distance_m < 35.0) {
+    // 5. Dynamic AR Obstacle Box in Fog (Only if radar target detected & not standby)
+    if (!isStandby && this.radarData && this.radarData.target_detected && this.radarData.distance_m < 35.0) {
       const d = Math.max(2.0, Math.min(35.0, this.radarData.distance_m));
       const depthFactor = 1.0 - (d / 35.0);
 
@@ -200,16 +211,9 @@ class ARLaneHUDRenderer {
     }
 
     // 6. Fog Layer
-    const fogAlpha = Math.min(0.75, Math.max(0.2, this.currentFogDensity * 0.65));
+    const fogAlpha = isStandby ? 0.25 : Math.min(0.75, Math.max(0.2, this.currentFogDensity * 0.65));
     ctx.fillStyle = `rgba(15, 23, 42, ${fogAlpha})`;
     ctx.fillRect(0, 0, w, h);
-
-    // 7. HUD Text Overlay
-    ctx.fillStyle = "#38bdf8";
-    ctx.font = `bold ${Math.round(10 * (w / 380))}px 'JetBrains Mono', monospace`;
-    ctx.fillText(`BERM L: ${this.currentBermLeft.toFixed(1)}m`, 14, h - 14);
-    ctx.fillText(`BERM R: ${this.currentBermRight.toFixed(1)}m`, w - 105, h - 14);
-    ctx.fillText(`AR VISIBILITY: ${this.currentVisibility.toFixed(1)}m`, 14, 22);
   }
 }
 
