@@ -34,6 +34,8 @@ try:
         HardwareIngressPayload,
         FleetVehicleSummary,
         IncidentRecord,
+        BOMItem,
+        ConsolidatedBOM,
     )
 except ImportError:
     from models import (
@@ -42,6 +44,8 @@ except ImportError:
         HardwareIngressPayload,
         FleetVehicleSummary,
         IncidentRecord,
+        BOMItem,
+        ConsolidatedBOM,
     )
 
 try:
@@ -177,6 +181,98 @@ async def get_incidents():
 async def clear_incidents():
     sim_engine.incidents.clear()
     return {"status": "SUCCESS", "message": "Incident log cleared"}
+
+# ================= SIH26007 CONSOLIDATED BOM DATA & V2V APIS =================
+CONSOLIDATED_BOM_DATA = {
+    "project": "SIH26007 MINE SAFETY PROTOTYPE",
+    "title": "CONSOLIDATED BOM & SYSTEM ARCHITECTURE",
+    "sector": "NMDC Bailadila Iron Ore Complex (Deposit 14/5)",
+    "to_purchase": [
+        {"category": "TO PURCHASE", "component": "VL53L1X Laser Ranging Sensor", "specification": "Dual ToF Long-Range 4m I2C", "quantity": 2, "allocation": "ToF (Car 1 & Car 2)", "primary_role": "Laser Ranging Sensor (Berm & Blind Spot)", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "Raspberry Pi Camera Module 3 Wide", "specification": "120° Wide FOV 12MP HDR", "quantity": 3, "allocation": "Wide Vision Feed", "primary_role": "Forward Vision & Miner Detection", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "mmWave Radar Module", "specification": "24 GHz / 77 GHz FMCW 50m", "quantity": 1, "allocation": "Front Grille (Car 1/2)", "primary_role": "Zero-Vis Fog & Dust Penetration", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "NEO-M8N GPS Module", "specification": "High Precision GNSS + Compass", "quantity": 1, "allocation": "GPS (Car 2)", "primary_role": "Pit Geolocation & Waypoint Nav", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "Optical Wheel Encoder Set", "specification": "Dual Channel Disc Opto-Isolator", "quantity": 1, "allocation": "Chassis Drivetrain", "primary_role": "Direct Ground Speed & Odometry", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "Raspberry Pi 4B (4GB/8GB)", "specification": "Quad-Core Cortex-A72 @ 1.5GHz", "quantity": 1, "allocation": "Car 1 Edge Node", "primary_role": "Data Fusion & Perception Host", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "ESP32 NodeMCU", "specification": "Dual Core WiFi/BLE MCU", "quantity": 1, "allocation": "Car 2 Controller", "primary_role": "Motor PWM & E-Stop Relay Control", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "Raspberry Pi Active Cooler", "specification": "Aluminum Heatsink + PWM Fan", "quantity": 1, "allocation": "RPi 4B Cooling", "primary_role": "Thermal Throttling Prevention", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "High Endurance MicroSD Card", "specification": "64GB Class 10 U3 A2", "quantity": 1, "allocation": "OS & Data Logging", "primary_role": "Fast Boot & Telemetry Cache", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "DC-DC Buck Converter", "specification": "LM2596 / MP1584 12V->5V 3A", "quantity": 1, "allocation": "Power Distribution", "primary_role": "Clean 5V Logic Rail Step-Down", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "Inline Fuse Holder & Fuses", "specification": "Waterproof 5A/10A Fast-Blow", "quantity": 1, "allocation": "Battery Line", "primary_role": "Short Circuit & Overcurrent Safety", "in_stock": True},
+        {"category": "TO PURCHASE", "component": "Main Heavy-Duty Toggle Switch", "specification": "SPST 12V 20A Illuminated", "quantity": 1, "allocation": "Master Cutoff", "primary_role": "Primary System Power Disconnect", "in_stock": True},
+    ],
+    "in_hand": [
+        {"category": "IN-HAND", "component": "RC Car Chassis & Powertrain", "specification": "1:10 Heavy Duty Off-Road 4WD", "quantity": 2, "allocation": "CAR 1 & CAR 2", "primary_role": "HEMM Physical Scale Models", "in_stock": True},
+        {"category": "IN-HAND", "component": "Raspberry Pi 4B", "specification": "Edge Compute 4GB RAM", "quantity": 1, "allocation": "CAR 2 Edge Node", "primary_role": "Data Fusion & Perception Node", "in_stock": True},
+        {"category": "IN-HAND", "component": "ESP32 NodeMCU", "specification": "Tensilica Xtensa Dual-Core", "quantity": 1, "allocation": "CAR 1 Controller", "primary_role": "Motor Control & Brake Actuator", "in_stock": True},
+        {"category": "IN-HAND", "component": "MPU6050 6-Axis IMU", "specification": "Accelerometer + Gyroscope I2C", "quantity": 1, "allocation": "CAR 2 Chassis", "primary_role": "Ramp Slope & Rollover Detection", "in_stock": True},
+        {"category": "IN-HAND", "component": "BMP280 Sensor", "specification": "Barometric Pressure & Temp", "quantity": 1, "allocation": "Pit Atmospheric", "primary_role": "Haul Road Altitude & Pit Weather", "in_stock": True},
+        {"category": "IN-HAND", "component": "Warning Buzzers & LEDs Set", "specification": "Piezo 85dB + High-Flux LEDs", "quantity": 1, "allocation": "Cab HMI Console", "primary_role": "Zero-Vis Acoustic/Optical Warning", "in_stock": True},
+        {"category": "IN-HAND", "component": "Laptop Workstations", "specification": "Development & Dispatch Desk", "quantity": 1, "allocation": "Ground Control", "primary_role": "Central Telemetry & Map Server", "in_stock": True},
+        {"category": "IN-HAND", "component": "Battery Packs & Smart Chargers", "specification": "3S 11.1V LiPo 5000mAh", "quantity": 1, "allocation": "Dual Vehicle Power", "primary_role": "High Current Powertrain Rail", "in_stock": True},
+    ],
+    "tools_hardware": [
+        {"category": "RECOMMENDED TOOLS", "component": "Wire Strippers, Cutters & Crimpers", "specification": "Precision AWG 18-28 Terminal Crimper", "quantity": 2, "allocation": "Tooling Kit", "primary_role": "Wire Harnessing & Interconnects", "in_stock": True},
+        {"category": "RECOMMENDED TOOLS", "component": "M2.5/M3 Standoffs & Screws Pack", "specification": "Brass / Nylon Standoff Assortment", "quantity": 2, "allocation": "Chassis Mounts", "primary_role": "RPi, ESP32 & Sensor Stacking", "in_stock": True},
+        {"category": "RECOMMENDED TOOLS", "component": "Digital Multimeter & Soldering Kit", "specification": "True RMS Auto-Range + 60W Station", "quantity": 1, "allocation": "Workbench", "primary_role": "Voltage Testing & Joint Assembly", "in_stock": True},
+    ]
+}
+
+@app.get("/api/bom")
+async def get_consolidated_bom():
+    """
+    Returns the SIH26007 Mine Safety Prototype Consolidated BOM & Inventory.
+    """
+    return CONSOLIDATED_BOM_DATA
+
+@app.get("/api/v2v/status")
+async def get_v2v_status():
+    """
+    Returns real-time V2V communication mesh link status between active fleet vehicles.
+    """
+    p1 = sim_engine.get_telemetry_packet("HEMM-DUMP-07")
+    p2 = sim_engine.get_telemetry_packet("HEMM-DUMP-02")
+    return {
+        "connected": True,
+        "protocol": "Wi-Fi (802.11s) / LoRa Mesh (868/915 MHz)",
+        "lead_car": {
+            "id": p1.vehicle_id,
+            "role": p1.car_role,
+            "speed_kmh": p1.speed_kmh,
+            "motor_status": p1.motor_control.status,
+            "tof_left_m": p1.tof_laser.left_m,
+            "tof_right_m": p1.tof_laser.right_m,
+        },
+        "follower_car": {
+            "id": p2.vehicle_id,
+            "role": p2.car_role,
+            "speed_kmh": p2.speed_kmh,
+            "motor_status": p2.motor_control.status,
+            "wheel_rpm": p2.encoder.rpm,
+            "imu_pitch_deg": p2.imu.pitch_deg,
+            "imu_grade_pct": p2.imu.grade_percent,
+        },
+        "distance_between_m": p1.v2v.distance_to_peer_m,
+        "relative_speed_kmh": p1.v2v.relative_speed_kmh,
+        "rssi_dbm": p1.v2v.rssi_dbm,
+        "v2v_alert_active": p1.v2v.v2v_alert,
+        "auto_stop_actuated": p1.v2v.auto_stop_actuated,
+    }
+
+@app.post("/api/v2v/motor_stop")
+async def trigger_emergency_motor_stop(req: Optional[dict] = None):
+    """
+    Simulate manual ESP32 emergency motor stop actuation on a fleet vehicle.
+    """
+    target = req.get("vehicle_id", "HEMM-DUMP-02") if req else "HEMM-DUMP-02"
+    v = sim_engine.fleet_vehicles.get(target)
+    if v:
+        v["speed"] = 0.0
+        v["brake_psi"] = 320.0
+        v["auto_stop"] = True
+        v["collision_state"] = "CRITICAL"
+        return {"status": "SUCCESS", "message": f"Emergency Motor Cutoff Actuated on {target}", "auto_stop": True}
+    return {"status": "ERROR", "message": f"Vehicle {target} not found"}
 
 @app.post("/api/hazard/inject")
 async def inject_hazard(req: HazardInjectionRequest):
@@ -326,3 +422,18 @@ if FRONTEND_DIR.exists():
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         return response
+
+    @app.get("/docs/NMDC_HEMM_Industry_Comparison_SIH26007.pdf")
+    @app.get("/api/docs/comparison.pdf")
+    async def serve_comparison_pdf():
+        pdf_path = FRONTEND_DIR / "docs" / "NMDC_HEMM_Industry_Comparison_SIH26007.pdf"
+        if pdf_path.exists():
+            return FileResponse(str(pdf_path), media_type="application/pdf", filename="NMDC_HEMM_Industry_Comparison_SIH26007.pdf")
+        raise HTTPException(status_code=404, detail="Comparison PDF not found")
+
+    @app.get("/comparison")
+    async def serve_comparison_html():
+        html_path = FRONTEND_DIR / "docs" / "industry_comparison.html"
+        if html_path.exists():
+            return FileResponse(str(html_path), media_type="text/html")
+        raise HTTPException(status_code=404, detail="Comparison HTML not found")
