@@ -45,6 +45,8 @@ class RadarTelemetry(BaseModel):
     target_detected: bool = False
     distance_m: float = 999.0
     relative_speed_kmh: float = 0.0
+    azimuth_deg: float = 0.0
+    snr_db: float = 0.0
     targets: List[RadarTarget] = []
     fov_deg: float = 120.0
     range_max_m: float = 60.0
