@@ -1,25 +1,32 @@
 /* 
  * HEMM Operator & Fleet Safety System - NMDC Bailadila Sector
- * High-Contrast Dark Industrial Rugged Tablet Theme (GPU Smooth Accelerated)
+ * THEME T-03: GLACIER CYAN (Deep Midnight Navy & Electric Cyan/Teal)
+ * High-Tech Mining Avionics & AR Corridor Guidance HUD
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700;800&family=Rajdhani:wght@500;600;700&display=swap');
 
 :root {
-  --bg-primary: #080c14;
-  --bg-panel: #0f172a;
-  --bg-card: #131d31;
-  --border-tactical: #1e293b;
-  --border-highlight: #334155;
+  --bg-primary: #020712;
+  --bg-panel: #051020;
+  --bg-card: #08162d;
+  --border-tactical: #00d2ff;
+  --border-highlight: #38bdf8;
+  --cyan-glow: rgba(0, 210, 255, 0.4);
+  
+  --glacier-cyan: #00d2ff;
+  --glacier-bright: #38bdf8;
+  --glacier-neon: #7dd3fc;
+  --teal-accent: #06b6d4;
   
   --safety-green: #10b981;
-  --safety-green-glow: rgba(16, 185, 129, 0.4);
+  --safety-green-glow: rgba(16, 185, 129, 0.45);
   --warning-amber: #f59e0b;
-  --warning-amber-glow: rgba(245, 158, 11, 0.45);
+  --warning-amber-glow: rgba(245, 158, 11, 0.5);
   --critical-red: #ef4444;
-  --critical-red-glow: rgba(239, 68, 68, 0.6);
-  --radar-cyan: #06b6d4;
-  --radar-cyan-glow: rgba(6, 182, 212, 0.4);
+  --critical-red-glow: rgba(239, 68, 68, 0.65);
+  --radar-cyan: #00d2ff;
+  --radar-cyan-glow: rgba(0, 210, 255, 0.45);
   --thermal-orange: #f97316;
 }
 
@@ -29,9 +36,14 @@
 }
 
 body {
-  font-family: 'Chakra Petch', sans-serif;
+  font-family: 'Rajdhani', 'Chakra Petch', sans-serif;
   background-color: var(--bg-primary);
-  color: #e2e8f0;
+  background-image: 
+    radial-gradient(ellipse at 50% 0%, rgba(0, 210, 255, 0.12) 0%, transparent 65%),
+    linear-gradient(to right, rgba(0, 210, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 210, 255, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 32px 32px, 32px 32px;
+  color: #f0fdfa;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -45,45 +57,47 @@ canvas {
   display: block;
 }
 
-/* Industrial Grid Background */
-.industrial-grid {
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-/* Tactical Cockpit Panel Styling */
+/* Tactical Cockpit Panel Styling - Theme T-03 Glacier Cyan */
 .tactical-panel {
-  background-color: var(--bg-panel);
-  border: 1px solid var(--border-tactical);
-  border-radius: 8px;
+  background-color: rgba(5, 16, 32, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid var(--border-tactical);
+  border-radius: 10px;
   position: relative;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 16px rgba(0, 210, 255, 0.22);
   transform: translateZ(0);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tactical-panel:hover {
+  border-color: var(--glacier-bright);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.9), 0 0 24px rgba(0, 210, 255, 0.38);
 }
 
 .tactical-panel::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 8px;
-  height: 8px;
-  border-top: 2px solid #64748b;
-  border-left: 2px solid #64748b;
+  top: -1px;
+  left: -1px;
+  width: 10px;
+  height: 10px;
+  border-top: 2.5px solid var(--glacier-bright);
+  border-left: 2.5px solid var(--glacier-bright);
+  border-top-left-radius: 10px;
+  pointer-events: none;
 }
 
 .tactical-panel::after {
   content: '';
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 8px;
-  height: 8px;
-  border-bottom: 2px solid #64748b;
-  border-right: 2px solid #64748b;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-bottom: 2.5px solid var(--glacier-bright);
+  border-right: 2.5px solid var(--glacier-bright);
+  border-bottom-right-radius: 10px;
+  pointer-events: none;
 }
 
 /* Alert States */
@@ -168,16 +182,17 @@ canvas {
 }
 
 .tactical-btn {
-  background-color: #1e293b;
-  border: 1px solid #334155;
-  color: #94a3b8;
+  background-color: #0c182c;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  color: #a5f3fc;
   transition: all 0.15s ease-out;
 }
 
 .tactical-btn:hover {
-  background-color: #334155;
-  color: #f8fafc;
-  border-color: #64748b;
+  background-color: #0e2948;
+  color: #ffffff;
+  border-color: #22d3ee;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
 }
 
 /* Custom Scrollbar */
@@ -187,16 +202,16 @@ canvas {
 }
 
 ::-webkit-scrollbar-track {
-  background: #090e17;
+  background: #050a14;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #0e7490;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #06b6d4;
 }
 
 /* Leaflet Map Marker Transitions */
