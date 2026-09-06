@@ -145,7 +145,10 @@ class RadarScopeRenderer {
     ctx.restore();
 
     // 7. Draw Detected Targets & Bounding Boxes
-    if (this.currentData && this.currentData.targets && this.currentData.targets.length > 0) {
+    const isStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY"));
+
+    if (!isStandby && this.currentData && this.currentData.targets && this.currentData.targets.length > 0) {
       this.currentData.targets.forEach(tgt => {
         const azRad = ((tgt.azimuth_deg - 90) * Math.PI) / 180.0;
         const distPx = (Math.min(tgt.distance_m, this.maxRangeMeters) / this.maxRangeMeters) * radius;
