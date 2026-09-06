@@ -12,7 +12,7 @@ if str(BACKEND_DIR) not in sys.path:
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from backend.server import app
+from backend.server import app, CONSOLIDATED_BOM_DATA
 
 if __name__ == "__main__":
     import uvicorn
