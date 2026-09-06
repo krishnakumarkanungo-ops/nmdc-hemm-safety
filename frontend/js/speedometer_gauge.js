@@ -70,8 +70,8 @@ class GlacierSpeedometerRenderer {
   }
 
   render() {
-    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE" && window.app.packetsIngestedCount === 0) || 
-      (window.app && window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY");
+    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY"));
 
     if (isHardwareStandby) {
       this.targetSpeed = 0.0;
