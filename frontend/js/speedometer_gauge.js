@@ -10,10 +10,10 @@ class GlacierSpeedometerRenderer {
     this.gaugeCtx = this.gaugeCanvas ? this.gaugeCanvas.getContext("2d") : null;
     this.waveCtx = this.waveCanvas ? this.waveCanvas.getContext("2d") : null;
 
-    this.currentSpeed = 45.0;
-    this.targetSpeed = 45.0;
-    this.currentRpm = 1850;
-    this.fuelPercent = 78;
+    this.currentSpeed = 38.0;
+    this.targetSpeed = 38.0;
+    this.currentRpm = 1750;
+    this.fuelPercent = 82;
     this.wavePhase = 0;
 
     this.resize();
@@ -53,16 +53,35 @@ class GlacierSpeedometerRenderer {
   }
 
   update(packet) {
-    if (packet) {
-      const spd = packet.speed_kmh !== undefined ? packet.speed_kmh : 45.0;
+    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE") && 
+      ((packet && packet.mode === "HARDWARE_STANDBY") || window.app.packetsIngestedCount === 0);
+
+    if (isHardwareStandby) {
+      this.targetSpeed = 0.0;
+      this.currentSpeed = 0.0;
+      this.currentRpm = 0;
+      this.fuelPercent = 100;
+    } else if (packet) {
+      const spd = packet.speed_kmh !== undefined ? packet.speed_kmh : 38.0;
       this.targetSpeed = spd;
-      this.currentRpm = packet.engine_rpm || 1850;
+      this.currentRpm = (packet.rpm !== undefined ? packet.rpm : packet.engine_rpm) || 1750;
+      this.fuelPercent = 82;
     }
   }
 
   render() {
-    // Smooth speed interpolation
-    this.currentSpeed += (this.targetSpeed - this.currentSpeed) * 0.15;
+    const isHardwareStandby = (window.app && window.app.appMode === "HARDWARE" && window.app.packetsIngestedCount === 0) || 
+      (window.app && window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY");
+
+    if (isHardwareStandby) {
+      this.targetSpeed = 0.0;
+      this.currentSpeed = 0.0;
+      this.currentRpm = 0;
+    } else {
+      // Smooth speed interpolation
+      this.currentSpeed += (this.targetSpeed - this.currentSpeed) * 0.15;
+    }
+
     this.wavePhase = (this.wavePhase + 0.08) % (Math.PI * 2);
 
     this.renderGauge();
@@ -154,12 +173,15 @@ class GlacierSpeedometerRenderer {
     ctx.textAlign = "right";
     ctx.fillText(this.currentRpm.toString(), cx + radius + 6, cy + 18);
 
-    // 7. Fuel Arc & Percentage (78%)
+    // 7. Fuel Arc & Percentage
+    const isStandby = this.currentSpeed < 0.5 && 
+      (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY"));
     const fuelY = cy + 34;
     ctx.fillStyle = "#94a3b8";
     ctx.font = "9px 'JetBrains Mono', monospace";
     ctx.textAlign = "center";
-    ctx.fillText("⛽ " + this.fuelPercent + "%", cx, fuelY);
+    ctx.fillText(isStandby ? "⛽ STANDBY" : "⛽ " + this.fuelPercent + "%", cx, fuelY);
 
     // 8. RPM mini bar
     const barW = 80;
@@ -181,21 +203,39 @@ class GlacierSpeedometerRenderer {
     ctx.clearRect(0, 0, w, h);
 
     // Baseline axis line
-    ctx.strokeStyle = "rgba(0, 210, 255, 0.2)";
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.25)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, h / 2);
     ctx.lineTo(w, h / 2);
     ctx.stroke();
 
-    // Oscilloscope Cyan Sine Wave with Harmonics
+    const isStandby = this.currentSpeed < 0.5 && 
+      (window.app && window.app.appMode === "HARDWARE") && 
+      (window.app.packetsIngestedCount === 0 || (window.app.latestPacket && window.app.latestPacket.mode === "HARDWARE_STANDBY"));
+
     ctx.save();
     ctx.shadowColor = "#00d2ff";
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 8;
     ctx.strokeStyle = "#00d2ff";
     ctx.lineWidth = 2;
     ctx.beginPath();
 
+    if (isStandby) {
+      // Quiet sensor standby baseline: flatline with subtle heartbeat blip
+      const pulseY = h / 2 + Math.sin(this.wavePhase) * 1.5;
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w * 0.44, h / 2);
+      ctx.lineTo(w * 0.47, pulseY - 5);
+      ctx.lineTo(w * 0.53, pulseY + 5);
+      ctx.lineTo(w * 0.56, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // Oscilloscope Cyan Sine Wave with Harmonics
     const freq = 0.04;
     const amp = (h / 2) * 0.65;
     for (let x = 0; x < w; x++) {
