@@ -15,7 +15,7 @@ class HEMMSafetyApp {
     this.ws = null;
     this.reconnectTimer = null;
     this.currentView = "HUD"; // "HUD", "DISPATCH", "DUAL"
-    this.appMode = "HARDWARE"; // "HARDWARE" (default, production) or "DEMO_TRAINING" (training sandbox)
+    this.appMode = "DEMO_TRAINING"; // Default to DEMO_TRAINING for full simulated telemetry demonstration on load
     this.latestPacket = null;
     this.hasNewPacket = false;
     this.activeVehicleId = "HEMM-DUMP-07";
@@ -115,6 +115,9 @@ class HEMMSafetyApp {
 
     // Bind UI Event Listeners
     this.bindEvents();
+
+    // Set Default UI Mode (Demo Simulator active on start)
+    this.setAppMode(this.appMode);
 
     // Instant HTTP fetch on start (0ms load)
     this.fetchTelemetryHttp();
@@ -225,10 +228,18 @@ class HEMMSafetyApp {
       });
     });
 
-    // Operator Training & Demo Sandbox Mode Switchers
+    // Segmented Mode Switcher (Demo Simulator vs Hardware Mode)
+    document.getElementById("btn-mode-demo")?.addEventListener("click", () => this.setAppMode("DEMO_TRAINING"));
+    document.getElementById("btn-mode-hardware")?.addEventListener("click", () => this.setAppMode("HARDWARE"));
     document.getElementById("btn-enter-training")?.addEventListener("click", () => this.setAppMode("DEMO_TRAINING"));
     document.getElementById("btn-exit-training")?.addEventListener("click", () => this.setAppMode("HARDWARE"));
     document.getElementById("btn-banner-exit-demo")?.addEventListener("click", () => this.setAppMode("HARDWARE"));
+    document.getElementById("btn-quick-pulse-test")?.addEventListener("click", () => this.sendTestHardwarePacket());
+    document.getElementById("btn-header-hw-modal")?.addEventListener("click", () => this.openHardwareModal());
+
+    // Optical Camera AI vs Thermal LWIR Viewport Toggles
+    document.getElementById("btn-toggle-cam")?.addEventListener("click", () => this.setCameraView("OPTICAL"));
+    document.getElementById("btn-toggle-thermal")?.addEventListener("click", () => this.setCameraView("THERMAL"));
 
     // Hardware Sensor Pairing Hub Modal Handlers
     document.getElementById("btn-open-hw-pairing")?.addEventListener("click", () => this.openHardwareModal());
@@ -657,6 +668,16 @@ class HEMMSafetyApp {
       fastSetText("hud-gps", "18.7145 N, 81.2525 E (1220m)");
       fastSetText("hud-visibility", "STANDBY");
       fastSetText("hud-mode-tag", "HARDWARE_STANDBY");
+      fastSetText("hud-tof-left", "-- m");
+      fastSetText("hud-tof-right", "-- m");
+      fastSetText("hud-radar-dist", "STANDBY");
+      fastSetText("hud-radar-relspeed", "-- km/h");
+      fastSetText("hud-imu-grade-val", "0% (LEVEL)");
+      const camHazardEl = document.getElementById("camera-hazard-type");
+      if (camHazardEl) {
+        camHazardEl.className = "text-cyan-400 font-bold";
+        camHazardEl.innerText = "STANDBY (READY TO PAIR)";
+      }
       return;
     }
 
@@ -989,19 +1010,61 @@ class HEMMSafetyApp {
     } catch (e) {}
   }
 
-  setAppMode(mode) {
-    this.appMode = mode; // "HARDWARE" or "DEMO_TRAINING"
+  setCameraView(view) {
+    const camCanvas = document.getElementById("camera-canvas");
+    const thermalCanvas = document.getElementById("thermal-canvas");
+    const btnCam = document.getElementById("btn-toggle-cam");
+    const btnThermal = document.getElementById("btn-toggle-thermal");
+    const viewTitle = document.getElementById("cam-view-title");
+    const viewIcon = document.getElementById("cam-view-icon");
+    const overlayTag = document.getElementById("cam-overlay-tag");
 
-    const bannerTraining = document.getElementById("training-mode-banner");
-    const btnEnter = document.getElementById("btn-enter-training");
-    const btnExit = document.getElementById("btn-exit-training");
+    if (view === "THERMAL") {
+      camCanvas?.classList.add("hidden");
+      thermalCanvas?.classList.remove("hidden");
+      btnCam?.classList.remove("bg-cyan-600", "text-white");
+      btnCam?.classList.add("bg-cyan-950", "text-cyan-300", "border", "border-cyan-500/40");
+      btnThermal?.classList.remove("bg-cyan-950", "text-cyan-300", "border", "border-cyan-500/40");
+      btnThermal?.classList.add("bg-cyan-600", "text-white");
+      if (viewTitle) viewTitle.innerText = "THERMAL LWIR VIEWPORT";
+      if (viewIcon) viewIcon.innerText = "🔥";
+      if (overlayTag) overlayTag.innerText = "LWIR FLIR Lepton 3.5 | 160x120";
+      this.thermalRenderer?.resize();
+    } else {
+      thermalCanvas?.classList.add("hidden");
+      camCanvas?.classList.remove("hidden");
+      btnThermal?.classList.remove("bg-cyan-600", "text-white");
+      btnThermal?.classList.add("bg-cyan-950", "text-cyan-300", "border", "border-cyan-500/40");
+      btnCam?.classList.remove("bg-cyan-950", "text-cyan-300", "border", "border-cyan-500/40");
+      btnCam?.classList.add("bg-cyan-600", "text-white");
+      if (viewTitle) viewTitle.innerText = "CAMERA AI VISION";
+      if (viewIcon) viewIcon.innerText = "📹";
+      if (overlayTag) overlayTag.innerText = "1080p AI VISION | YOLOv8-Nano";
+      this.cameraRenderer?.resize();
+    }
+  }
+
+  setAppMode(mode) {
+    this.appMode = mode; // "DEMO_TRAINING" or "HARDWARE"
+
+    const btnModeDemo = document.getElementById("btn-mode-demo");
+    const btnModeHw = document.getElementById("btn-mode-hardware");
+    const demoBar = document.getElementById("demo-mode-bar");
+    const hwBar = document.getElementById("hardware-mode-bar");
     const deckHw = document.getElementById("deck-hardware-status");
     const deckDemo = document.getElementById("deck-demo-harness");
 
     if (mode === "DEMO_TRAINING") {
-      bannerTraining?.classList.remove("hidden");
-      btnEnter?.classList.add("hidden");
-      btnExit?.classList.remove("hidden");
+      // Highlight Demo button
+      if (btnModeDemo) {
+        btnModeDemo.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 shadow-md shadow-amber-500/30 flex items-center gap-1 cursor-pointer";
+      }
+      if (btnModeHw) {
+        btnModeHw.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer";
+      }
+
+      demoBar?.classList.remove("hidden");
+      hwBar?.classList.add("hidden");
       deckHw?.classList.add("hidden");
       deckDemo?.classList.remove("hidden");
 
@@ -1011,30 +1074,30 @@ class HEMMSafetyApp {
         this.dispatchMap.selectedVehicle = "HEMM-DUMP-07";
       }
 
-      // Automatically bring operator into Cab HUD so Camera, Laser ToF, and Inclinometer are front and center
-      this.switchView("HUD");
-
       fetch("/api/mode/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "SIMULATION" })
-      }).catch(() => {});
+      }).then(() => this.fetchTelemetryHttp()).catch(() => {});
     } else {
-      // HARDWARE MODE (Default Production View)
-      bannerTraining?.classList.add("hidden");
-      btnEnter?.classList.remove("hidden");
-      btnExit?.classList.add("hidden");
+      // HARDWARE MODE
+      if (btnModeDemo) {
+        btnModeDemo.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer";
+      }
+      if (btnModeHw) {
+        btnModeHw.className = "px-3 py-1 rounded font-mono text-xs font-bold transition-all bg-cyan-600 text-white shadow-md shadow-cyan-500/30 flex items-center gap-1 cursor-pointer";
+      }
+
+      demoBar?.classList.add("hidden");
+      hwBar?.classList.remove("hidden");
       deckHw?.classList.remove("hidden");
       deckDemo?.classList.add("hidden");
-
-      // Reset any active simulated hazard
-      this.injectHazard("NONE", 999.0);
 
       fetch("/api/mode/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "HARDWARE" })
-      }).catch(() => {});
+      }).then(() => this.fetchTelemetryHttp()).catch(() => {});
     }
 
     this.updateCabUnitOptions();
