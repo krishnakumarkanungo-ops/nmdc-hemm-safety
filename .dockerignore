@@ -1,0 +1,15 @@
+cloudflared.exe
+*.png
+*.jpg
+scratch_*.py
+test_*.py
+check_*.py
+find_*.py
+inspect_*.py
+extract_*.py
+dump_*.py
+print_*.py
+__pycache__
+.venv
+.git
+LIVE_URL.txt
